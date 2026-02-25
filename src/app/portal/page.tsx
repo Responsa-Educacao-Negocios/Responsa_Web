@@ -56,9 +56,11 @@ export default function PortalClientePage() {
         }
 
         const cdEmpresa = usuarioCliente.cd_empresa;
+        const empresa = Array.isArray(usuarioCliente.EMPRESAS)
+          ? usuarioCliente.EMPRESAS[0]
+          : usuarioCliente.EMPRESAS;
         const nomeDaEmpresa =
-          usuarioCliente.EMPRESAS.nm_fantasia ||
-          usuarioCliente.EMPRESAS.nm_razao_social;
+          empresa?.nm_fantasia || empresa?.nm_razao_social;
 
         // 3. Busca os projetos ativos dessa empresa e quem é o consultor responsável
         // Como a modelagem não tem um "consultor_responsavel" direto na empresa ainda,

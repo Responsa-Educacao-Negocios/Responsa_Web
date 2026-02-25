@@ -30,8 +30,15 @@ export default function ProjetoLayout({
         .single();
 
       if (data) {
-        setEmpresaNome(data.EMPRESAS?.nm_fantasia || "Empresa");
-        setServicoNome(data.TIPOS_CONSULTORIA?.nm_servico || "Projeto");
+        const empresa = Array.isArray(data.EMPRESAS)
+          ? data.EMPRESAS[0]
+          : data.EMPRESAS;
+        const servico = Array.isArray(data.TIPOS_CONSULTORIA)
+          ? data.TIPOS_CONSULTORIA[0]
+          : data.TIPOS_CONSULTORIA;
+
+        setEmpresaNome((empresa as any)?.nm_fantasia || "Empresa");
+        setServicoNome((servico as any)?.nm_servico || "Projeto");
       }
     };
     buscarCabecalhoProjeto();

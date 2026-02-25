@@ -28,7 +28,12 @@ export default function ClimaOrganizacionalPage() {
           .eq("cd_projeto", params.id)
           .single();
 
-        if (projData) setNomeExibicao(projData.EMPRESAS?.nm_fantasia || "");
+        if (projData) {
+          const empresa = Array.isArray(projData.EMPRESAS)
+            ? projData.EMPRESAS[0]
+            : projData.EMPRESAS;
+          setNomeExibicao(empresa?.nm_fantasia || "");
+        }
 
         // 2. Busca TODAS as respostas individuais para calcular a média em tempo real
         const { data: respostas, error: errR } = await supabase

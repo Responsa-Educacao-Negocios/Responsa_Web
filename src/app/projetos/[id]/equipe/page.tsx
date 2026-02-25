@@ -118,7 +118,13 @@ export default function MapaEquipePage() {
 
       if (funcError) throw funcError;
 
-      setFuncionarios(funcData || []);
+      // Normaliza o retorno do Supabase para garantir que CARGOS seja um objeto único e não um array
+      const funcionariosFormatados = (funcData || []).map((f: any) => ({
+        ...f,
+        CARGOS: Array.isArray(f.CARGOS) ? f.CARGOS[0] : f.CARGOS,
+      }));
+
+      setFuncionarios(funcionariosFormatados as Funcionario[]);
     } catch (error: any) {
       console.error("Erro ao buscar dados:", error);
     } finally {

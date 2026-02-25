@@ -79,11 +79,11 @@ export default function FichaEmpresaPage() {
       if (data) {
         // Salva os dados resumidos para a tela
         setEmpresaData({
-          cd_empresa: data.EMPRESAS.cd_empresa,
-          nm_fantasia: data.EMPRESAS.nm_fantasia,
-          nm_razao_social: data.EMPRESAS.nm_razao_social || "Não cadastrado",
-          nr_cnpj: data.EMPRESAS.nr_cnpj || "Não cadastrado",
-          ds_segmento: data.EMPRESAS.ds_segmento || "Sem segmento",
+          cd_empresa: data.EMPRESAS[0].cd_empresa,
+          nm_fantasia: data.EMPRESAS[0].nm_fantasia,
+          nm_razao_social: data.EMPRESAS[0].nm_razao_social || "Não cadastrado",
+          nr_cnpj: data.EMPRESAS[0].nr_cnpj || "Não cadastrado",
+          ds_segmento: data.EMPRESAS[0].ds_segmento || "Sem segmento",
           nr_horas_contratadas: data.nr_horas_contratadas || 0,
           nr_horas_consumidas: data.nr_horas_consumidas || 0,
           ts_criacao: data.ts_criacao,
@@ -91,25 +91,25 @@ export default function FichaEmpresaPage() {
 
         // Preenche o formulário invisível com todos os dados da tabela
         setFormData({
-          nm_razao_social: data.EMPRESAS.nm_razao_social || "",
-          nm_fantasia: data.EMPRESAS.nm_fantasia || "",
-          nr_cnpj: data.EMPRESAS.nr_cnpj || "",
-          ds_segmento: data.EMPRESAS.ds_segmento || "",
-          nm_responsavel_contato: data.EMPRESAS.nm_responsavel_contato || "",
-          ds_endereco: data.EMPRESAS.ds_endereco || "",
-          nm_responsavel_legal: data.EMPRESAS.nm_responsavel_legal || "",
-          ds_email: data.EMPRESAS.ds_email || "",
-          ds_telefone: data.EMPRESAS.ds_telefone || "",
+          nm_razao_social: data.EMPRESAS[0].nm_razao_social || "",
+          nm_fantasia: data.EMPRESAS[0].nm_fantasia || "",
+          nr_cnpj: data.EMPRESAS[0].nr_cnpj || "",
+          ds_segmento: data.EMPRESAS[0].ds_segmento || "",
+          nm_responsavel_contato: data.EMPRESAS[0].nm_responsavel_contato || "",
+          ds_endereco: data.EMPRESAS[0].ds_endereco || "",
+          nm_responsavel_legal: data.EMPRESAS[0].nm_responsavel_legal || "",
+          ds_email: data.EMPRESAS[0].ds_email || "",
+          ds_telefone: data.EMPRESAS[0].ds_telefone || "",
           nr_faturamento_mensal:
-            data.EMPRESAS.nr_faturamento_mensal?.toString() || "",
+            data.EMPRESAS[0].nr_faturamento_mensal?.toString() || "",
           nr_qtd_colaboradores:
-            data.EMPRESAS.nr_qtd_colaboradores?.toString() || "",
-          nr_qtd_lideres: data.EMPRESAS.nr_qtd_lideres?.toString() || "",
-          tx_dor_empresario: data.EMPRESAS.tx_dor_empresario || "",
-          tx_desafios_rh: data.EMPRESAS.tx_desafios_rh || "",
-          ds_nivel_formalizacao: data.EMPRESAS.ds_nivel_formalizacao || "",
-          tx_expectativa: data.EMPRESAS.tx_expectativa || "",
-          ds_urgencia: data.EMPRESAS.ds_urgencia || "",
+            data.EMPRESAS[0].nr_qtd_colaboradores?.toString() || "",
+          nr_qtd_lideres: data.EMPRESAS[0].nr_qtd_lideres?.toString() || "",
+          tx_dor_empresario: data.EMPRESAS[0].tx_dor_empresario || "",
+          tx_desafios_rh: data.EMPRESAS[0].tx_desafios_rh || "",
+          ds_nivel_formalizacao: data.EMPRESAS[0].ds_nivel_formalizacao || "",
+          tx_expectativa: data.EMPRESAS[0].tx_expectativa || "",
+          ds_urgencia: data.EMPRESAS[0].ds_urgencia || "",
         });
       }
     } catch (error) {
