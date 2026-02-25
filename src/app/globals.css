@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+@theme {
+  /* Cores Principais (CoreConsulta / Responsa) */
+  --color-primary: #064384;
+  --color-primary-dark: #053466;
+  --color-secondary: #ff8323;
+  --color-accent: #ff8323;
+  --color-accent-dark: #e5761f;
+
+  /* Layout & Superfícies */
+  --color-background-light: #f8fafc; /* Fundo cinza super claro do relatório novo */
+  --color-surface-light: #ffffff;
+  --color-sidebar-bg: #064384;
+  --color-sidebar-hover: #053466;
+
+  /* Textos */
+  --color-text-main: #334155; /* Um pouco mais azulado para combinar com o tema */
+  --color-text-sub: #6b7280;
+
+  /* Feedback e Alertas */
+  --color-success: #07883b;
+  --color-alert-bg: #fef2f2;
+  --color-alert-border: #fee2e2;
+  --color-alert-text: #991b1b;
+
+  /* Cores da Metodologia DISC */
+  --color-disc-d: #ef4444; /* Dominância (Vermelho) */
+  --color-disc-i: #eab308; /* Influência (Amarelo) */
+  --color-disc-s: #22c55e; /* Estabilidade (Verde) */
+  --color-disc-c: #3b82f6; /* Conformidade (Azul) */
+
+  /* Fontes */
+  --font-display: var(--font-montserrat), sans-serif;
+  --font-body: var(--font-montserrat), sans-serif;
+}
+
+@layer base {
+  body {
+    @apply font-body text-text-main bg-background-light;
+  }
+}
