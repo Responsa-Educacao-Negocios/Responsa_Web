@@ -60,7 +60,7 @@ export default function FichaEmpresaPage() {
         .from("PROJETOS")
         .select(
           `
-          nr_horas_contratadas, 
+          nr_horas_contratadas,
           nr_horas_consumidas,
           ts_criacao,
           EMPRESAS (
@@ -77,40 +77,47 @@ export default function FichaEmpresaPage() {
       if (error) throw error;
 
       if (data) {
-        // Salva os dados resumidos para a tela
-        setEmpresaData({
-          cd_empresa: data.EMPRESAS[0].cd_empresa,
-          nm_fantasia: data.EMPRESAS[0].nm_fantasia,
-          nm_razao_social: data.EMPRESAS[0].nm_razao_social || "Não cadastrado",
-          nr_cnpj: data.EMPRESAS[0].nr_cnpj || "Não cadastrado",
-          ds_segmento: data.EMPRESAS[0].ds_segmento || "Sem segmento",
-          nr_horas_contratadas: data.nr_horas_contratadas || 0,
-          nr_horas_consumidas: data.nr_horas_consumidas || 0,
-          ts_criacao: data.ts_criacao,
-        });
+        // Normaliza o retorno: se for array pega o primeiro item, se for objeto usa direto
+        const empresa = Array.isArray(data.EMPRESAS)
+          ? data.EMPRESAS[0]
+          : data.EMPRESAS;
 
-        // Preenche o formulário invisível com todos os dados da tabela
-        setFormData({
-          nm_razao_social: data.EMPRESAS[0].nm_razao_social || "",
-          nm_fantasia: data.EMPRESAS[0].nm_fantasia || "",
-          nr_cnpj: data.EMPRESAS[0].nr_cnpj || "",
-          ds_segmento: data.EMPRESAS[0].ds_segmento || "",
-          nm_responsavel_contato: data.EMPRESAS[0].nm_responsavel_contato || "",
-          ds_endereco: data.EMPRESAS[0].ds_endereco || "",
-          nm_responsavel_legal: data.EMPRESAS[0].nm_responsavel_legal || "",
-          ds_email: data.EMPRESAS[0].ds_email || "",
-          ds_telefone: data.EMPRESAS[0].ds_telefone || "",
-          nr_faturamento_mensal:
-            data.EMPRESAS[0].nr_faturamento_mensal?.toString() || "",
-          nr_qtd_colaboradores:
-            data.EMPRESAS[0].nr_qtd_colaboradores?.toString() || "",
-          nr_qtd_lideres: data.EMPRESAS[0].nr_qtd_lideres?.toString() || "",
-          tx_dor_empresario: data.EMPRESAS[0].tx_dor_empresario || "",
-          tx_desafios_rh: data.EMPRESAS[0].tx_desafios_rh || "",
-          ds_nivel_formalizacao: data.EMPRESAS[0].ds_nivel_formalizacao || "",
-          tx_expectativa: data.EMPRESAS[0].tx_expectativa || "",
-          ds_urgencia: data.EMPRESAS[0].ds_urgencia || "",
-        });
+        if (empresa) {
+          // Salva os dados resumidos para a tela
+          setEmpresaData({
+            cd_empresa: empresa.cd_empresa || "",
+            nm_fantasia: empresa.nm_fantasia || "Não cadastrado",
+            nm_razao_social: empresa.nm_razao_social || "Não cadastrado",
+            nr_cnpj: empresa.nr_cnpj || "Não cadastrado",
+            ds_segmento: empresa.ds_segmento || "Sem segmento",
+            nr_horas_contratadas: data.nr_horas_contratadas || 0,
+            nr_horas_consumidas: data.nr_horas_consumidas || 0,
+            ts_criacao: data.ts_criacao,
+          });
+
+          // Preenche o formulário invisível com todos os dados da tabela
+          setFormData({
+            nm_razao_social: empresa.nm_razao_social || "",
+            nm_fantasia: empresa.nm_fantasia || "",
+            nr_cnpj: empresa.nr_cnpj || "",
+            ds_segmento: empresa.ds_segmento || "",
+            nm_responsavel_contato: empresa.nm_responsavel_contato || "",
+            ds_endereco: empresa.ds_endereco || "",
+            nm_responsavel_legal: empresa.nm_responsavel_legal || "",
+            ds_email: empresa.ds_email || "",
+            ds_telefone: empresa.ds_telefone || "",
+            nr_faturamento_mensal:
+              empresa.nr_faturamento_mensal?.toString() || "",
+            nr_qtd_colaboradores:
+              empresa.nr_qtd_colaboradores?.toString() || "",
+            nr_qtd_lideres: empresa.nr_qtd_lideres?.toString() || "",
+            tx_dor_empresario: empresa.tx_dor_empresario || "",
+            tx_desafios_rh: empresa.tx_desafios_rh || "",
+            ds_nivel_formalizacao: empresa.ds_nivel_formalizacao || "",
+            tx_expectativa: empresa.tx_expectativa || "",
+            ds_urgencia: empresa.ds_urgencia || "",
+          });
+        }
       }
     } catch (error) {
       console.error("Erro ao carregar Ficha da Empresa:", error);

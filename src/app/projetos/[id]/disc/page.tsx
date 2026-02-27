@@ -19,54 +19,44 @@ export default function AnaliseDiscEquipePage() {
       try {
         setLoading(true);
 
-        // 1. Pega o ID da empresa vinculado ao projeto
-        const { data: projData, error: projError } = await supabase
-          .from("PROJETOS")
-          .select("cd_empresa")
-          .eq("cd_projeto", params.id)
-          .single();
+        // 1. Busca TODAS as avaliações DISC vinculadas diretamente a este PROJETO
+        const { data: avaliacoes, error } = await supabase
+          .from("AVALIACOES_DISC")
+          .select("*")
+          .eq("cd_projeto", params.id);
 
-        if (projError) throw projError;
+        if (error) throw error;
 
-        // 2. Busca todos os funcionários ativos dessa empresa
-        const { data: funcData, error: funcError } = await supabase
-          .from("FUNCIONARIOS")
-          .select("sg_perfil_disc, js_pontuacao_disc")
-          .eq("cd_empresa", projData.cd_empresa)
-          .eq("sn_ativo", true);
-
-        if (funcError) throw funcError;
-
-        // 3. AGREGANDO OS DADOS DA EQUIPE
-        const equipe = funcData || [];
-
-        // Filtra apenas quem tem o teste preenchido
-        const equipeComTeste = equipe.filter(
-          (f) => f.sg_perfil_disc && f.js_pontuacao_disc,
-        );
-        const totalTestes = equipeComTeste.length;
+        const totalTestes = avaliacoes ? avaliacoes.length : 0;
 
         if (totalTestes === 0) {
           setStats(null);
           return;
         }
 
-        // Contagem de Perfis Predominantes
+        // 2. Contagem de Perfis Predominantes
         const contagem = { D: 0, I: 0, S: 0, C: 0 };
-        let somaAderencia = 0;
 
-        equipeComTeste.forEach((f) => {
-          // Pega a primeira letra do perfil (Ex: "DI" -> "D")
-          const perfilPrincipal = f.sg_perfil_disc.charAt(0);
-          if (
-            contagem[perfilPrincipal as keyof typeof contagem] !== undefined
-          ) {
-            contagem[perfilPrincipal as keyof typeof contagem]++;
-          }
-          somaAderencia += f.js_pontuacao_disc.aderencia || 0;
+        avaliacoes.forEach((a) => {
+          // Pega as notas da avaliação individual e descobre qual é a maior
+          const scores = {
+            D: a.nr_dominancia || 0,
+            I: a.nr_influencia || 0,
+            S: a.nr_estabilidade || 0,
+            C: a.nr_conformidade || 0,
+          };
+
+          // Encontra a letra com a maior pontuação (ex: se D for 80, ele ganha)
+          const perfilPrincipal = Object.keys(scores).reduce((x, y) =>
+            scores[x as keyof typeof scores] > scores[y as keyof typeof scores]
+              ? x
+              : y,
+          );
+
+          contagem[perfilPrincipal as keyof typeof contagem]++;
         });
 
-        // Transformando em Porcentagens para o Gráfico de Rosca
+        // 3. Transformando em Porcentagens para o Gráfico de Rosca
         const dist = {
           D: Math.round((contagem.D / totalTestes) * 100),
           I: Math.round((contagem.I / totalTestes) * 100),
@@ -74,13 +64,12 @@ export default function AnaliseDiscEquipePage() {
           C: Math.round((contagem.C / totalTestes) * 100),
         };
 
-        // Achando o perfil predominante da equipe
+        // 4. Achando o perfil predominante da equipe
         const perfilEquipe = Object.keys(dist).reduce((a, b) =>
           dist[a as keyof typeof dist] > dist[b as keyof typeof dist] ? a : b,
         );
 
-        // Mocks de Maturidade Comportamental (Média da Equipe) - Baseado no seu print
-        // Em um cenário real, você faria a média das notas de competência de todos.
+        // 5. Mocks de Maturidade Comportamental (Média da Equipe)
         const maturidade = {
           autoconhecimento: 55,
           comunicacao: 62,
@@ -93,7 +82,7 @@ export default function AnaliseDiscEquipePage() {
           total: totalTestes,
           distribuicao: dist,
           perfilEquipe,
-          aderenciaMedia: Math.round(somaAderencia / totalTestes),
+          aderenciaMedia: 85, // Mock temporário para aderência
           maturidade,
         });
       } catch (error) {

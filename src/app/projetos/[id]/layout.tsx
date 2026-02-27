@@ -46,11 +46,20 @@ export default function ProjetoLayout({
 
   // Menu Inteligente que sabe qual página está ativa
   const menuProjeto = [
-    { label: "Dashboard", icon: "dashboard", href: `/projetos/${projetoId}` },
+    {
+      label: "Dashboard",
+      icon: "dashboard",
+      href: `/projetos/${projetoId}`,
+    },
     {
       label: "Ficha da Empresa",
       icon: "business",
       href: `/projetos/${projetoId}/empresa`,
+    },
+    {
+      label: "Diagnóstico RH",
+      icon: "fact_check",
+      href: `/projetos/${projetoId}/diagnostico`,
     },
     {
       label: "Mapa de Equipe",

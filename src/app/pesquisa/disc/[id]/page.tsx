@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// LISTA DE PERGUNTAS (Exemplo com as 5 primeiras, adicione as 25)
+// LISTA DE PERGUNTAS (Abreviada para o exemplo, mantenha as 25)
 const discQuestions = [
   { id: 1, words: ["FOCADO", "ARTICULADO", "COMPREENSIVO", "CUIDADOSO"] },
   { id: 2, words: ["PODEROSO", "ESPONTÂNEO", "TOLERANTE", "DETALHISTA"] },
@@ -45,21 +45,19 @@ export default function PesquisaDiscPage() {
     Record<number, Record<string, number>>
   >({});
 
-  // 1. CARREGA O FUNCIONÁRIO E O RASCUNHO (SE HOUVER)
+  // 1. CARREGA O FUNCIONÁRIO, A EMPRESA E O RASCUNHO (SE HOUVER)
   useEffect(() => {
     const fetchUser = async () => {
       const { data } = await supabase
         .from("FUNCIONARIOS")
-        .select("nm_completo, js_pontuacao_disc")
+        .select("nm_completo, cd_empresa, js_pontuacao_disc")
         .eq("cd_funcionario", params.id)
         .single();
 
       if (data) {
         setFuncionario(data);
-        // Se ele já tinha começado o teste antes, recupera de onde parou
         if (data.js_pontuacao_disc?.respostas_brutas) {
           setAnswers(data.js_pontuacao_disc.respostas_brutas);
-          // Pula para a última tela não respondida
           const answeredSteps = Object.keys(
             data.js_pontuacao_disc.respostas_brutas,
           ).length;
@@ -75,7 +73,6 @@ export default function PesquisaDiscPage() {
   const currentGroup = discQuestions[currentStep];
   const currentAnswers = answers[currentGroup.id] || {};
 
-  // 2. LÓGICA DE ORDENAÇÃO SEM REPETIÇÃO
   const handleSelect = (word: string, rank: number) => {
     const newAnswers = { ...currentAnswers };
     Object.keys(newAnswers).forEach((key) => {
@@ -91,14 +88,14 @@ export default function PesquisaDiscPage() {
 
   const canGoNext = Object.keys(currentAnswers).length === 4;
 
-  // 3. SALVAMENTO AUTOMÁTICO E CÁLCULO FINAL
+  // 3. SALVAMENTO AUTOMÁTICO E CÁLCULO FINAL (CONECTADO COM AVALIACOES_DISC)
   const handleNext = async () => {
     if (!canGoNext) return;
     setIsSaving(true);
 
     try {
-      // Se não for a última pergunta, apenas salva o rascunho
       if (currentStep < discQuestions.length - 1) {
+        // Apenas salva o rascunho para não perder progresso
         await supabase
           .from("FUNCIONARIOS")
           .update({
@@ -110,19 +107,45 @@ export default function PesquisaDiscPage() {
           .eq("cd_funcionario", params.id);
 
         setCurrentStep((curr) => curr + 1);
-      }
-      // SE FOR A ÚLTIMA PERGUNTA: FINALIZA O TESTE
-      else {
-        // AQUI ENTRA A MATEMÁTICA DO DISC (Mock básico de cálculo)
-        // No mundo real, você vai cruzar as palavras com o gabarito.
-        // Simulando que ele tirou DI:
-        const pontuacaoFinal = {
-          D: 45,
-          I: 35,
-          S: 10,
-          C: 10,
+      } else {
+        // MOCK DO RESULTADO FINAL (Aqui você aplicaria a lógica real do seu gabarito)
+        const notasDISC = { D: 45, I: 35, S: 10, C: 10 };
+        const perfilPrincipal = "DI";
+
+        // PASSO A: Busca qual é o projeto atual (mais recente) da empresa deste funcionário
+        const { data: projData } = await supabase
+          .from("PROJETOS")
+          .select("cd_projeto")
+          .eq("cd_empresa", funcionario.cd_empresa)
+          .order("ts_criacao", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (projData) {
+          // PASSO B: Salva o Histórico Oficial na tabela AVALIACOES_DISC do projeto!
+          const { error: discError } = await supabase
+            .from("AVALIACOES_DISC")
+            .insert([
+              {
+                cd_projeto: projData.cd_projeto,
+                cd_funcionario: params.id,
+                nm_colaborador: funcionario.nm_completo, // <--- ESTA LINHA FALTAVA
+                nr_dominancia: notasDISC.D,
+                nr_influencia: notasDISC.I,
+                nr_estabilidade: notasDISC.S,
+                nr_conformidade: notasDISC.C,
+              },
+            ]);
+
+          if (discError)
+            console.error("Erro ao salvar histórico DISC:", discError);
+        }
+
+        // PASSO C: Atualiza o Perfil atual do Funcionário no cadastro principal
+        const pontuacaoParaCadastro = {
+          ...notasDISC,
           aderencia: 85,
-          respostas_brutas: answers, // Mantém o histórico salvo
+          respostas_brutas: answers,
           competencias: [
             { label: "Liderança e Comando", valor: 85, alvo: 75, letra: "D" },
             {
@@ -141,20 +164,18 @@ export default function PesquisaDiscPage() {
           ],
         };
 
-        const { error } = await supabase
+        const { error: funcError } = await supabase
           .from("FUNCIONARIOS")
           .update({
-            js_pontuacao_disc: pontuacaoFinal,
-            sg_perfil_disc: "DI", // Atualiza o perfil principal
+            js_pontuacao_disc: pontuacaoParaCadastro,
+            sg_perfil_disc: perfilPrincipal,
           })
           .eq("cd_funcionario", params.id);
 
-        if (error) throw error;
+        if (funcError) throw funcError;
 
         alert("Teste Finalizado com Sucesso! Muito obrigado.");
-
-        // Redireciona ele para uma tela de "Obrigado" ou para a Home
-        router.push("/sucesso"); // Crie essa página depois
+        router.push("/sucesso");
       }
     } catch (error) {
       console.error("Erro ao salvar:", error);
@@ -181,18 +202,16 @@ export default function PesquisaDiscPage() {
 
   return (
     <div className="bg-background-light min-h-screen flex flex-col transition-colors duration-200 relative overflow-hidden z-0">
-      {/* Background Blurs (Design Original) */}
       <div className="fixed top-[-10%] right-[-5%] w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl opacity-60 -z-10 pointer-events-none"></div>
       <div className="fixed bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-secondary/5 rounded-full blur-3xl opacity-60 -z-10 pointer-events-none"></div>
 
-      {/* HEADER */}
       <header className="w-full bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
         <div className="flex items-center gap-3">
           <div className="size-8 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
             <span className="material-symbols-outlined">corporate_fare</span>
           </div>
           <span className="font-black text-lg tracking-tight text-primary uppercase">
-            Responsa
+            CoreConsulta
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -205,10 +224,8 @@ export default function PesquisaDiscPage() {
         </div>
       </header>
 
-      {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-grow flex flex-col items-center justify-center p-4 sm:p-6 md:p-8">
         <div className="w-full max-w-3xl bg-white rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-slate-100 flex flex-col transition-all duration-300">
-          {/* Progress Bar */}
           <div className="px-8 pt-8 pb-4">
             <div className="flex justify-between items-end mb-3">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
@@ -239,7 +256,6 @@ export default function PesquisaDiscPage() {
               </p>
             </div>
 
-            {/* LISTA DE PALAVRAS COM BOTÕES DE RANKING */}
             <div className="space-y-4">
               <div className="grid grid-cols-[1fr_auto] gap-4 px-2">
                 <div></div>
@@ -259,8 +275,6 @@ export default function PesquisaDiscPage() {
                   <span className="font-extrabold text-slate-700 tracking-tight">
                     {word}
                   </span>
-
-                  {/* Botoes 1 a 4 */}
                   <div className="flex gap-2">
                     {[1, 2, 3, 4].map((num) => {
                       const isSelected = currentAnswers[word] === num;
@@ -269,11 +283,7 @@ export default function PesquisaDiscPage() {
                           key={num}
                           onClick={() => handleSelect(word, num)}
                           className={`size-12 rounded-lg font-black text-sm transition-all duration-200 flex items-center justify-center border-2
-                            ${
-                              isSelected
-                                ? "bg-primary border-primary text-white shadow-md shadow-primary/20 scale-105"
-                                : "bg-white border-slate-200 text-slate-400 hover:border-primary/50 hover:text-primary"
-                            }
+                            ${isSelected ? "bg-primary border-primary text-white shadow-md shadow-primary/20 scale-105" : "bg-white border-slate-200 text-slate-400 hover:border-primary/50 hover:text-primary"}
                           `}
                         >
                           {num}
@@ -286,7 +296,6 @@ export default function PesquisaDiscPage() {
             </div>
           </div>
 
-          {/* FOOTER DO CARD (BOTOES DE NAVEGAÇÃO) */}
           <div className="px-8 py-6 bg-slate-50/50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 rounded-b-2xl">
             <button
               onClick={handlePrev}
@@ -298,31 +307,29 @@ export default function PesquisaDiscPage() {
               </span>{" "}
               Anterior
             </button>
-
             <button
               onClick={handleNext}
-              disabled={!canGoNext}
+              disabled={!canGoNext || isSaving}
               className={`w-full sm:w-auto px-10 py-3.5 rounded-xl font-black uppercase tracking-widest text-[11px] transition-all duration-200 flex items-center justify-center gap-2 group
-                ${
-                  canGoNext
-                    ? "bg-secondary hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 active:scale-95"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                }
+                ${canGoNext ? "bg-secondary hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 active:scale-95" : "bg-slate-200 text-slate-400 cursor-not-allowed"}
               `}
             >
-              {currentStep === discQuestions.length - 1
-                ? "Finalizar Teste"
-                : "Próxima"}
-              <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">
-                {currentStep === discQuestions.length - 1
-                  ? "check_circle"
-                  : "arrow_forward"}
-              </span>
+              {isSaving
+                ? "Salvando..."
+                : currentStep === discQuestions.length - 1
+                  ? "Finalizar Teste"
+                  : "Próxima"}
+              {!isSaving && (
+                <span className="material-symbols-outlined text-lg group-hover:translate-x-1 transition-transform">
+                  {currentStep === discQuestions.length - 1
+                    ? "check_circle"
+                    : "arrow_forward"}
+                </span>
+              )}
             </button>
           </div>
         </div>
 
-        {/* Info Extra Base */}
         <div className="w-full max-w-3xl mt-6 flex items-center justify-between text-[11px] font-bold text-slate-400 px-4">
           <div className="flex items-center gap-2 text-green-600">
             <span className="material-symbols-outlined text-sm">

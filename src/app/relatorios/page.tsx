@@ -5,53 +5,27 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Tabela Fake (Mock) para o histórico de relatórios enquanto não criamos a tabela no Supabase
-const RELATORIOS_MOCK = [
-  {
-    id: 1,
-    titulo: "Consolidado DISC - TechCorp Solutions",
-    setor: "Departamento de TI",
-    formato: "PDF",
-    data: "28 Jun, 2026 - 14:30",
-    icon: "picture_as_pdf",
-    color: "text-rose-600 bg-rose-50",
-  },
-  {
-    id: 2,
-    titulo: "Pesquisa de Clima - Inova Brasil",
-    setor: "Dados brutos",
-    formato: "Excel (XLSX)",
-    data: "27 Jun, 2026 - 09:15",
-    icon: "table_chart",
-    color: "text-green-600 bg-green-50",
-  },
-  {
-    id: 3,
-    titulo: "Avaliação 360º - Grupo Vida",
-    setor: "Diretoria Executiva",
-    formato: "PDF",
-    data: "25 Jun, 2026 - 16:45",
-    icon: "picture_as_pdf",
-    color: "text-rose-600 bg-rose-50",
-  },
-  {
-    id: 4,
-    titulo: "Diagnóstico Organizacional - Omega Inc.",
-    setor: "Completo",
-    formato: "PPTX",
-    data: "24 Jun, 2026 - 10:20",
-    icon: "analytics",
-    color: "text-primary bg-blue-50",
-  },
-];
+// Nova Tipagem Dinâmica
+interface RelatorioItem {
+  id: string;
+  titulo: string;
+  setor: string;
+  formato: string;
+  data: string;
+  icon: string;
+  color: string;
+  href: string;
+}
 
 export default function RelatoriosPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
+  const [relatorios, setRelatorios] = useState<RelatorioItem[]>([]);
   const [metricas, setMetricas] = useState({
     totalDiagnosticos: 0,
     climaMedioGlobal: 0.0,
+    totalRelatorios: 0,
   });
 
   useEffect(() => {
@@ -65,24 +39,72 @@ export default function RelatoriosPage() {
       }
 
       try {
-        // Busca os dados REAIS da sua tabela AVALIACOES_CLIMA
-        const { data: avaliacoes, count } = await supabase
-          .from("AVALIACOES_CLIMA")
-          .select("nr_nota_geral", { count: "exact" });
+        // 1. Busca os Projetos e Empresas para gerar a lista de Relatórios Finais
+        const { data: projetosData, error: projError } = await supabase
+          .from("PROJETOS")
+          .select(
+            `
+            cd_projeto,
+            ts_criacao,
+            EMPRESAS ( nm_fantasia )
+          `,
+          )
+          .order("ts_criacao", { ascending: false });
 
-        // Calcula a média global de clima de todas as empresas
-        let mediaGlobal = 0;
-        if (avaliacoes && avaliacoes.length > 0) {
-          const somaTotal = avaliacoes.reduce(
-            (acc, curr) => acc + (Number(curr.nr_nota_geral) || 0),
-            0,
+        if (projError) throw projError;
+
+        const relatoriosDinamicos =
+          projetosData?.map((p) => {
+            const empresa = Array.isArray(p.EMPRESAS)
+              ? p.EMPRESAS[0]
+              : p.EMPRESAS;
+            return {
+              id: p.cd_projeto,
+              titulo: `Relatório Final Executivo - ${empresa?.nm_fantasia || "Empresa"}`,
+              setor: "Gestão 360°",
+              formato: "Web / PDF",
+              data: new Date(p.ts_criacao).toLocaleDateString("pt-BR"),
+              icon: "analytics",
+              color: "text-[#064384] bg-blue-50",
+              href: `/projetos/${p.cd_projeto}/relatorio`,
+            };
+          }) || [];
+
+        setRelatorios(relatoriosDinamicos);
+
+        // 2. Busca o número real de Diagnósticos RH já feitos
+        const { count: diagCount } = await supabase
+          .from("INDICADORES_RH")
+          .select("*", { count: "exact", head: true });
+
+        // 3. Busca a média Global de Clima (Lendo as respostas individuais para ser exato)
+        const { data: respostasClima } = await supabase
+          .from("RESPOSTAS_INDIVIDUAIS_CLIMA")
+          .select(
+            "nr_lideranca, nr_comunicac, nr_reconhecir, nr_desenvolvi, nr_ambiente, nr_engajamen",
           );
-          mediaGlobal = somaTotal / avaliacoes.length;
+
+        let mediaGlobal = 0;
+        if (respostasClima && respostasClima.length > 0) {
+          const somaTotal = respostasClima.reduce((acc, curr) => {
+            const mediaResposta =
+              (curr.nr_lideranca +
+                curr.nr_comunicac +
+                curr.nr_reconhecir +
+                curr.nr_desenvolvi +
+                curr.nr_ambiente +
+                curr.nr_engajamen) /
+              6;
+            return acc + mediaResposta;
+          }, 0);
+          // Multiplica por 10 para converter a escala 1-10 para 1-100, e divide para voltar pra 0-10 pro visual
+          mediaGlobal = somaTotal / respostasClima.length;
         }
 
         setMetricas({
-          totalDiagnosticos: count || 0,
+          totalDiagnosticos: diagCount || 0,
           climaMedioGlobal: Number(mediaGlobal.toFixed(1)),
+          totalRelatorios: relatoriosDinamicos.length,
         });
       } catch (error) {
         console.error("Erro ao carregar métricas de relatórios:", error);
@@ -101,7 +123,7 @@ export default function RelatoriosPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light flex items-center justify-center flex-col gap-4 text-primary">
+      <div className="min-h-screen bg-background-light flex items-center justify-center flex-col gap-4 text-[#064384]">
         <span className="material-symbols-outlined animate-spin text-4xl">
           progress_activity
         </span>
@@ -111,16 +133,17 @@ export default function RelatoriosPage() {
   }
 
   // Prepara o percentual do Clima (se a nota for 7.8, a barra fica em 78%)
-  const percentualClima = (metricas.climaMedioGlobal / 10) * 100;
+  const percentualClima =
+    metricas.climaMedioGlobal > 0 ? (metricas.climaMedioGlobal / 10) * 100 : 0;
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased relative">
+    <div className="flex h-screen w-full overflow-hidden bg-[#F8FAFC] font-sans text-slate-800 antialiased relative">
       <Sidebar onLogout={handleLogout} />
 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* HEADER TOP DA TELA DE RELATÓRIOS (Sem barra de busca) */}
+        {/* HEADER TOP DA TELA DE RELATÓRIOS */}
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-8 shadow-sm flex-shrink-0 z-10">
-          <h2 className="text-xl font-bold text-text-main tracking-tight">
+          <h2 className="text-xl font-black text-slate-800 tracking-tight">
             Central de Relatórios
           </h2>
 
@@ -129,352 +152,220 @@ export default function RelatoriosPage() {
               <span className="material-symbols-outlined text-slate-400 text-sm">
                 calendar_today
               </span>
-              <span className="text-sm text-slate-600">Este Semestre</span>
-              <span className="material-symbols-outlined text-slate-400 text-sm cursor-pointer">
-                expand_more
+              <span className="text-sm font-bold text-slate-600">
+                Este Semestre
               </span>
             </div>
-            <button className="flex items-center gap-2 rounded-lg bg-accent hover:bg-accent-dark text-white px-4 py-2 transition-colors shadow-sm text-sm font-medium focus:outline-none">
-              <span className="material-symbols-outlined text-lg">
-                download
-              </span>
-              Exportar Tudo
-            </button>
           </div>
         </header>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-8">
-          {/* MÉTRICAS (Alimentadas pela base de dados real) */}
+          {/* MÉTRICAS REAIS DO BANCO */}
           <section>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-100 group hover:border-primary/30 transition-all">
+              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-200 group hover:border-[#064384]/30 transition-all">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="rounded-lg bg-blue-50 p-2 text-primary">
-                    <span className="material-symbols-outlined">
-                      psychology
-                    </span>
+                  <div className="rounded-lg bg-blue-50 p-2 text-[#064384]">
+                    <span className="material-symbols-outlined">analytics</span>
                   </div>
-                  <h3 className="text-sm font-medium text-slate-500">
-                    Total de Diagnósticos Realizados
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">
+                    Diagnósticos Concluídos
                   </h3>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-text-main">
-                    {metricas.totalDiagnosticos > 0
-                      ? metricas.totalDiagnosticos
-                      : 843}
+                  <span className="text-3xl font-black text-slate-800">
+                    {metricas.totalDiagnosticos}
                   </span>
-                  {metricas.totalDiagnosticos === 0 && (
-                    <span className="flex items-center text-xs font-semibold text-primary bg-blue-50 px-2 py-0.5 rounded-full">
+                  {metricas.totalDiagnosticos > 0 && (
+                    <span className="flex items-center text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-md uppercase">
                       <span className="material-symbols-outlined text-[14px] mr-1">
                         trending_up
                       </span>{" "}
-                      +24%
+                      Ativos
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-400 mt-2">
-                  Dados gerais da consultoria
+                <p className="text-xs font-medium text-slate-400 mt-2">
+                  Empresas mapeadas no sistema
                 </p>
               </div>
 
-              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-100 group hover:border-accent/30 transition-all">
+              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-200 group hover:border-[#FF8323]/30 transition-all">
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="rounded-lg bg-orange-50 p-2 text-accent">
+                  <div className="rounded-lg bg-orange-50 p-2 text-[#FF8323]">
                     <span className="material-symbols-outlined">
-                      sentiment_satisfied
+                      thermostat
                     </span>
                   </div>
-                  <h3 className="text-sm font-medium text-slate-500">
-                    Nível de Clima Médio (Global)
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">
+                    Clima Médio (Global)
                   </h3>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-text-main">
+                  <span className="text-3xl font-black text-slate-800">
                     {metricas.climaMedioGlobal > 0
                       ? metricas.climaMedioGlobal
-                      : 7.8}
+                      : "0.0"}
                   </span>
-                  <span className="text-sm text-slate-400 font-medium">
+                  <span className="text-sm text-slate-400 font-black">
                     / 10.0
                   </span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 mt-4">
+                <div className="w-full bg-slate-100 rounded-full h-1.5 mt-4 overflow-hidden">
                   <div
-                    className="bg-accent h-1.5 rounded-full transition-all duration-1000"
-                    style={{
-                      width: `${metricas.climaMedioGlobal > 0 ? percentualClima : 78}%`,
-                    }}
+                    className="bg-[#FF8323] h-1.5 rounded-full transition-all duration-1000"
+                    style={{ width: `${percentualClima}%` }}
                   ></div>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-100 group hover:border-primary/30 transition-all">
+              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-200 group hover:border-[#064384]/30 transition-all">
                 <div className="flex items-center gap-4 mb-4">
                   <div className="rounded-lg bg-slate-100 p-2 text-slate-600">
                     <span className="material-symbols-outlined">
-                      description
+                      folder_shared
                     </span>
                   </div>
-                  <h3 className="text-sm font-medium text-slate-500">
-                    Relatórios Gerados no Mês
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">
+                    Relatórios Disponíveis
                   </h3>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-text-main">156</span>
-                  <span className="flex items-center text-xs font-semibold text-primary bg-blue-50 px-2 py-0.5 rounded-full">
-                    <span className="material-symbols-outlined text-[14px] mr-1">
-                      trending_up
-                    </span>{" "}
-                    +12%
+                  <span className="text-3xl font-black text-slate-800">
+                    {metricas.totalRelatorios}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mt-2">
-                  PDF e Excel combinados
+                <p className="text-xs font-medium text-slate-400 mt-2">
+                  Prontos para exportação PDF
                 </p>
               </div>
             </div>
           </section>
 
-          {/* GRÁFICOS */}
-          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* GRÁFICOS ILUSTRATIVOS (Mantidos para composição visual) */}
+          <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 opacity-60 hover:opacity-100 transition-opacity duration-300">
             {/* Gráfico 1: Barras CSS (Simulação) */}
-            <div className="rounded-xl bg-white p-6 shadow-sm border border-slate-100">
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-slate-200">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-text-main">
-                  Volume de Pesquisas por Cliente
+                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-widest">
+                  Evolução de Mapeamentos
                 </h3>
-                <button className="text-slate-400 hover:text-primary transition-colors focus:outline-none">
-                  <span className="material-symbols-outlined">more_horiz</span>
-                </button>
               </div>
-
-              <div className="h-64 w-full flex items-end justify-between gap-2 px-2">
-                <div className="flex flex-col items-center gap-2 w-full group">
-                  <div className="w-full bg-primary/10 rounded-t-sm h-full relative group-hover:bg-primary/20 transition-colors">
-                    <div
-                      className="absolute bottom-0 w-full bg-primary rounded-t-sm transition-all duration-1000"
-                      style={{ height: "65%" }}
-                    ></div>
+              <div className="h-40 w-full flex items-end justify-between gap-2 px-2">
+                {[65, 85, 45, 72, 30, 55].map((h, i) => (
+                  <div
+                    key={i}
+                    className="flex flex-col items-center gap-2 w-full group"
+                  >
+                    <div className="w-full bg-slate-100 rounded-t-md h-full relative overflow-hidden">
+                      <div
+                        className="absolute bottom-0 w-full bg-[#064384] rounded-t-md transition-all duration-1000"
+                        style={{ height: `${h}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    TechCorp
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-2 w-full group">
-                  <div className="w-full bg-primary/10 rounded-t-sm h-full relative group-hover:bg-primary/20 transition-colors">
-                    <div
-                      className="absolute bottom-0 w-full bg-accent rounded-t-sm transition-all duration-1000 delay-100"
-                      style={{ height: "85%" }}
-                    ></div>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    Inova
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-2 w-full group">
-                  <div className="w-full bg-primary/10 rounded-t-sm h-full relative group-hover:bg-primary/20 transition-colors">
-                    <div
-                      className="absolute bottom-0 w-full bg-primary rounded-t-sm transition-all duration-1000 delay-200"
-                      style={{ height: "45%" }}
-                    ></div>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    G. Vida
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-2 w-full group">
-                  <div className="w-full bg-primary/10 rounded-t-sm h-full relative group-hover:bg-primary/20 transition-colors">
-                    <div
-                      className="absolute bottom-0 w-full bg-primary rounded-t-sm transition-all duration-1000 delay-300"
-                      style={{ height: "72%" }}
-                    ></div>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    Alpha
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-2 w-full group">
-                  <div className="w-full bg-primary/10 rounded-t-sm h-full relative group-hover:bg-primary/20 transition-colors">
-                    <div
-                      className="absolute bottom-0 w-full bg-primary rounded-t-sm transition-all duration-1000 delay-500"
-                      style={{ height: "30%" }}
-                    ></div>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    Beta
-                  </span>
-                </div>
-                <div className="flex flex-col items-center gap-2 w-full group">
-                  <div className="w-full bg-primary/10 rounded-t-sm h-full relative group-hover:bg-primary/20 transition-colors">
-                    <div
-                      className="absolute bottom-0 w-full bg-accent rounded-t-sm transition-all duration-1000 delay-700"
-                      style={{ height: "55%" }}
-                    ></div>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    Omega
-                  </span>
-                </div>
+                ))}
               </div>
             </div>
 
-            {/* Gráfico 2: Linha SVG (Simulação) */}
-            <div className="rounded-xl bg-white p-6 shadow-sm border border-slate-100">
+            {/* Gráfico 2: Tendência */}
+            <div className="rounded-xl bg-white p-6 shadow-sm border border-slate-200">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-bold text-text-main">
-                  Tendência de Engajamento (6 Meses)
+                <h3 className="font-bold text-slate-800 text-sm uppercase tracking-widest">
+                  Média de Satisfação
                 </h3>
-                <div className="flex items-center gap-2">
-                  <span className="flex items-center gap-1 text-xs text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-primary"></span>{" "}
-                    Média
-                  </span>
-                  <span className="flex items-center gap-1 text-xs text-slate-500">
-                    <span className="w-2 h-2 rounded-full bg-slate-200"></span>{" "}
-                    Meta
-                  </span>
-                </div>
               </div>
-              <div className="h-64 w-full relative pt-4">
-                <div className="absolute inset-0 flex flex-col justify-between text-xs text-slate-300 pointer-events-none">
-                  <div className="border-b border-slate-100 w-full h-0"></div>
-                  <div className="border-b border-slate-100 w-full h-0"></div>
-                  <div className="border-b border-slate-100 w-full h-0"></div>
-                  <div className="border-b border-slate-100 w-full h-0"></div>
-                  <div className="border-b border-slate-100 w-full h-0"></div>
-                </div>
+              <div className="h-40 w-full relative pt-4">
                 <svg
                   className="w-full h-full overflow-visible"
                   preserveAspectRatio="none"
                   viewBox="0 0 100 100"
                 >
                   <path
-                    className="stroke-slate-300 stroke-[1]"
+                    className="stroke-slate-200 stroke-[1]"
                     d="M0,30 L100,30"
                     fill="none"
                     strokeDasharray="4,4"
                   ></path>
                   <path
-                    className="stroke-primary stroke-[2]"
+                    className="stroke-[#FF8323] stroke-[3]"
                     d="M0,60 C20,60 20,40 40,45 C60,50 60,30 80,25 L100,20"
                     fill="none"
                   ></path>
-                  <circle
-                    className="fill-white stroke-primary stroke-[2]"
-                    cx="0"
-                    cy="60"
-                    r="1.5"
-                  ></circle>
-                  <circle
-                    className="fill-white stroke-primary stroke-[2]"
-                    cx="20"
-                    cy="55"
-                    r="1.5"
-                  ></circle>
-                  <circle
-                    className="fill-white stroke-primary stroke-[2]"
-                    cx="40"
-                    cy="45"
-                    r="1.5"
-                  ></circle>
-                  <circle
-                    className="fill-white stroke-primary stroke-[2]"
-                    cx="60"
-                    cy="40"
-                    r="1.5"
-                  ></circle>
-                  <circle
-                    className="fill-white stroke-primary stroke-[2]"
-                    cx="80"
-                    cy="25"
-                    r="1.5"
-                  ></circle>
-                  <circle
-                    className="fill-white stroke-accent stroke-[2]"
-                    cx="100"
-                    cy="20"
-                    r="2"
-                  ></circle>
                 </svg>
-                <div className="flex justify-between text-xs text-slate-400 mt-2">
-                  <span>Jan</span>
-                  <span>Fev</span>
-                  <span>Mar</span>
-                  <span>Abr</span>
-                  <span>Mai</span>
-                  <span>Jun</span>
-                </div>
               </div>
             </div>
           </section>
 
-          {/* LISTA DE HISTÓRICO DE RELATÓRIOS (Mapeado pelo Array Mock) */}
+          {/* LISTA DINÂMICA DE RELATÓRIOS DO BANCO */}
           <section className="space-y-4 pb-8">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-text-main">
-                Relatórios Recentes
+              <h3 className="text-lg font-black text-slate-800 tracking-tight">
+                Relatórios por Cliente
               </h3>
-              <button className="text-sm font-medium text-primary hover:text-primary-dark flex items-center gap-1 focus:outline-none">
-                Ver histórico completo{" "}
-                <span className="material-symbols-outlined text-sm">
-                  arrow_forward
-                </span>
-              </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="w-full text-left border-collapse">
-                <div className="grid grid-cols-12 gap-4 border-b border-slate-100 bg-slate-50 px-6 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <div className="grid grid-cols-12 gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 text-xs font-black text-slate-500 uppercase tracking-widest">
                   <div className="col-span-5">Nome do Relatório</div>
                   <div className="col-span-2">Formato</div>
-                  <div className="col-span-3">Data de Geração</div>
+                  <div className="col-span-3">Criação do Projeto</div>
                   <div className="col-span-2 text-right">Ação</div>
                 </div>
 
-                {RELATORIOS_MOCK.map((relatorio) => (
-                  <div
-                    key={relatorio.id}
-                    className="px-6 py-4 hover:bg-blue-50/30 transition-colors border-b border-slate-100 last:border-0 grid grid-cols-12 gap-4 items-center"
-                  >
-                    <div className="col-span-5 flex items-center gap-3">
-                      <div
-                        className={`h-8 w-8 rounded flex items-center justify-center ${relatorio.color}`}
-                      >
-                        <span className="material-symbols-outlined text-lg">
-                          {relatorio.icon}
+                {relatorios.length === 0 ? (
+                  <div className="p-12 text-center text-slate-400 font-bold">
+                    Nenhum relatório encontrado no banco de dados.
+                  </div>
+                ) : (
+                  relatorios.map((relatorio) => (
+                    <div
+                      key={relatorio.id}
+                      className="px-6 py-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 grid grid-cols-12 gap-4 items-center group"
+                    >
+                      <div className="col-span-5 flex items-center gap-3">
+                        <div
+                          className={`h-10 w-10 rounded-xl flex items-center justify-center ${relatorio.color}`}
+                        >
+                          <span className="material-symbols-outlined text-xl">
+                            {relatorio.icon}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-800 truncate max-w-[300px]">
+                            {relatorio.titulo}
+                          </p>
+                          <p className="text-xs font-medium text-slate-400 mt-0.5">
+                            {relatorio.setor}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="col-span-2">
+                        <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-slate-500 border border-slate-200">
+                          {relatorio.formato}
                         </span>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-text-main truncate max-w-[300px]">
-                          {relatorio.titulo}
-                        </p>
-                        <p className="text-xs text-slate-400">
-                          {relatorio.setor}
-                        </p>
+
+                      <div className="col-span-3 text-sm font-medium text-slate-500">
+                        {relatorio.data}
+                      </div>
+
+                      <div className="col-span-2 flex justify-end">
+                        <button
+                          onClick={() => router.push(relatorio.href)}
+                          className="flex items-center justify-center gap-2 rounded-lg bg-white border border-slate-200 px-4 py-2 text-xs font-bold text-[#064384] hover:bg-[#064384] hover:text-white shadow-sm transition-all focus:outline-none group-hover:border-[#064384]/30"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">
+                            visibility
+                          </span>{" "}
+                          Acessar
+                        </button>
                       </div>
                     </div>
-
-                    <div className="col-span-2">
-                      <span className="inline-flex items-center rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                        {relatorio.formato}
-                      </span>
-                    </div>
-
-                    <div className="col-span-3 text-sm text-slate-600">
-                      {relatorio.data}
-                    </div>
-
-                    <div className="col-span-2 flex justify-end">
-                      <button className="flex items-center gap-1 rounded-lg border border-primary/20 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary hover:text-white transition-all focus:outline-none">
-                        <span className="material-symbols-outlined text-sm">
-                          download
-                        </span>{" "}
-                        Download
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           </section>

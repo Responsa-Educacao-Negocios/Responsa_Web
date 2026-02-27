@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Tipagens para o Portal do Cliente
+// Tipagens
 interface ProjetoCliente {
   cd_projeto: string;
   dt_prazo_estimado: string;
@@ -21,17 +21,23 @@ interface DadosPortal {
   empresaNome: string;
   consultorNome: string;
   projetos: ProjetoCliente[];
+  progresso: {
+    temDiagnostico: boolean;
+    temClima: boolean;
+    climaStatus: string;
+    qtdDisc: number;
+  };
 }
 
 export default function PortalClientePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [dadosPortal, setDadosPortal] = useState<DadosPortal | null>(null);
+  const [linkCopiado, setLinkCopiado] = useState(false);
 
   useEffect(() => {
     const carregarDadosDoCliente = async () => {
       try {
-        // 1. Pega a sessão atual
         const {
           data: { session },
         } = await supabase.auth.getSession();
@@ -42,14 +48,13 @@ export default function PortalClientePage() {
 
         const userId = session.user.id;
 
-        // 2. Busca o vínculo do usuário com a empresa
+        // 1. Busca o vínculo do usuário com a empresa
         const { data: usuarioCliente, error: userError } = await supabase
           .from("USUARIOS_CLIENTE")
           .select("cd_empresa, EMPRESAS ( nm_fantasia, nm_razao_social )")
           .eq("cd_auth_supabase", userId)
           .single();
 
-        // Se não achar, não é cliente (talvez um consultor perdido aqui), manda pro login
         if (userError || !usuarioCliente) {
           router.push("/login");
           return;
@@ -59,27 +64,59 @@ export default function PortalClientePage() {
         const empresa = Array.isArray(usuarioCliente.EMPRESAS)
           ? usuarioCliente.EMPRESAS[0]
           : usuarioCliente.EMPRESAS;
-        const nomeDaEmpresa =
-          empresa?.nm_fantasia || empresa?.nm_razao_social;
+        const nomeDaEmpresa = empresa?.nm_fantasia || empresa?.nm_razao_social;
 
-        // 3. Busca os projetos ativos dessa empresa e quem é o consultor responsável
-        // Como a modelagem não tem um "consultor_responsavel" direto na empresa ainda,
-        // vamos buscar os projetos e assumir que a empresa tem projetos rodando.
+        // 2. Busca os projetos ativos
         const { data: projetos } = await supabase
           .from("PROJETOS")
           .select(
-            `
-            cd_projeto, dt_prazo_estimado, nr_horas_consumidas, nr_horas_contratadas, tp_status,
-            TIPOS_CONSULTORIA ( nm_servico )
-          `,
+            `cd_projeto, dt_prazo_estimado, nr_horas_consumidas, nr_horas_contratadas, tp_status, TIPOS_CONSULTORIA ( nm_servico )`,
           )
           .eq("cd_empresa", cdEmpresa)
           .order("ts_atualizacao", { ascending: false });
 
+        // 3. Busca o progresso real nas tabelas satélites do projeto principal
+        const progresso = {
+          temDiagnostico: false,
+          temClima: false,
+          climaStatus: "",
+          qtdDisc: 0,
+        };
+
+        if (projetos && projetos.length > 0) {
+          const pId = projetos[0].cd_projeto;
+
+          // Usamos 'cd_projeto' (que sabemos que existe) ou '*' com 'head: true' para evitar erros de colunas inexistentes
+          const [resInd, resClima, resDisc] = await Promise.all([
+            supabase
+              .from("INDICADORES_RH")
+              .select("cd_projeto")
+              .eq("cd_projeto", pId)
+              .limit(1),
+            supabase
+              .from("AVALIACOES_CLIMA")
+              .select("tp_status")
+              .eq("cd_projeto", pId)
+              .limit(1)
+              .maybeSingle(),
+            supabase
+              .from("AVALIACOES_DISC")
+              .select("*", { count: "exact", head: true })
+              .eq("cd_projeto", pId),
+          ]);
+
+          progresso.temDiagnostico = (resInd.data &&
+            resInd.data.length > 0) as boolean;
+          progresso.temClima = !!resClima.data;
+          progresso.climaStatus = resClima.data?.tp_status || "";
+          progresso.qtdDisc = resDisc.count || 0;
+        }
+
         setDadosPortal({
           empresaNome: nomeDaEmpresa,
-          consultorNome: "Equipe RESPONSA", // Hardcoded temporariamente até termos o vínculo de consultor-empresa
+          consultorNome: "Equipe Responsa", // Pode ser ajustado futuramente com tabela de relacionamento
           projetos: (projetos as any) || [],
+          progresso,
         });
       } catch (error) {
         console.error("Erro ao carregar portal:", error);
@@ -96,9 +133,16 @@ export default function PortalClientePage() {
     router.push("/login");
   };
 
+  const copiarLinkClima = (projetoId: string) => {
+    const link = `${window.location.origin}/pesquisa/clima/${projetoId}`;
+    navigator.clipboard.writeText(link);
+    setLinkCopiado(true);
+    setTimeout(() => setLinkCopiado(false), 3000);
+  };
+
   if (loading || !dadosPortal) {
     return (
-      <div className="min-h-screen bg-background-light flex items-center justify-center flex-col gap-4 text-primary">
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center flex-col gap-4 text-[#064384]">
         <span className="material-symbols-outlined animate-spin text-4xl">
           progress_activity
         </span>
@@ -107,97 +151,81 @@ export default function PortalClientePage() {
     );
   }
 
-  // Pega o projeto mais recente/ativo para exibir na timeline
   const projetoAtual =
     dadosPortal.projetos.length > 0 ? dadosPortal.projetos[0] : null;
+  const progresso = dadosPortal.progresso;
+
+  // Lógica da Timeline baseada em dados reais
+  const fase1Concluida = progresso.temDiagnostico;
+  const fase2Concluida =
+    progresso.climaStatus === "CONCLUIDO" || progresso.qtdDisc > 0;
+  const fase3Concluida = projetoAtual?.tp_status === "CONCLUIDO";
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main">
+    <div className="flex h-screen w-full overflow-hidden bg-[#F1F5F9] font-sans text-slate-800">
       {/* SIDEBAR EXCLUSIVA DO CLIENTE */}
-      <aside className="hidden w-72 flex-col bg-primary lg:flex z-20 shadow-lg text-white flex-shrink-0">
-        <div className="flex h-20 items-center gap-3 px-6 border-b border-white/10">
-          <div className="flex items-center justify-center rounded-lg bg-white/10 p-2 text-white">
-            <span className="material-symbols-outlined filled">
-              verified_user
+      <aside className="hidden w-72 flex-col bg-[#064384] lg:flex z-20 shadow-xl text-white flex-shrink-0">
+        <div className="flex h-20 items-center gap-3 px-8 border-b border-white/10">
+          <div className="flex items-center justify-center rounded-lg bg-white/10 p-2 text-[#FF8323]">
+            <span className="material-symbols-outlined font-black">
+              dashboard_customize
             </span>
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white leading-tight tracking-wide">
-              RESPONSA
+            <h1 className="text-xl font-black text-white leading-tight tracking-tighter uppercase">
+              Responsa
             </h1>
-            <p className="text-xs text-white/60 font-medium uppercase tracking-wider">
+            <p className="text-[10px] text-blue-200 font-bold uppercase tracking-widest mt-0.5">
               Portal do Cliente
             </p>
           </div>
         </div>
 
-        <nav className="flex-1 flex flex-col gap-2 p-4 overflow-y-auto">
+        <nav className="flex-1 flex flex-col gap-2 p-6 overflow-y-auto">
           <Link
             href="/portal"
-            className="flex items-center gap-3 rounded-lg bg-white/10 px-4 py-3 text-white border-l-4 border-accent transition-all"
+            className="flex items-center gap-3 rounded-xl bg-white/10 px-4 py-3 text-white border-l-4 border-[#FF8323] transition-all font-bold text-sm shadow-md"
           >
-            <span className="material-symbols-outlined filled">dashboard</span>
-            <span className="text-sm font-semibold">
-              Visão Geral do Projeto
-            </span>
+            <span className="material-symbols-outlined">grid_view</span> Visão
+            Geral
           </Link>
           <Link
-            href="#"
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-white/70 hover:bg-white/5 hover:text-white transition-colors group"
+            href="/portal/contratos"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-blue-200 hover:bg-white/5 hover:text-white transition-colors font-bold text-sm"
           >
-            <div className="relative">
-              <span className="material-symbols-outlined">check_circle</span>
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent text-[10px] font-bold text-white shadow-sm">
-                2
-              </span>
-            </div>
-            <span className="text-sm font-medium">Aprovações</span>
-          </Link>
-          <Link
-            href="#"
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-white/70 hover:bg-white/5 hover:text-white transition-colors group"
-          >
-            <span className="material-symbols-outlined">folder_open</span>
-            <span className="text-sm font-medium">Documentos</span>
+            <span className="material-symbols-outlined">description</span> Meus
+            Contratos
           </Link>
         </nav>
 
-        <div className="p-4 border-t border-white/10 flex flex-col gap-2">
-          <Link
-            href="#"
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-white/70 hover:bg-white/5 hover:text-white transition-colors"
-          >
-            <span className="material-symbols-outlined">help</span>
-            <span className="text-sm font-medium">Ajuda & Suporte</span>
-          </Link>
+        <div className="p-6 border-t border-white/10 flex flex-col gap-2">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 rounded-lg px-4 py-3 text-white/70 hover:bg-red-500/20 hover:text-red-400 transition-colors text-left focus:outline-none"
+            className="flex items-center gap-3 rounded-xl px-4 py-3 text-blue-200 hover:bg-red-500/20 hover:text-red-400 transition-colors text-left font-bold text-sm w-full"
           >
-            <span className="material-symbols-outlined">logout</span>
-            <span className="text-sm font-medium">Sair</span>
+            <span className="material-symbols-outlined">logout</span> Sair do
+            Sistema
           </button>
         </div>
       </aside>
 
       <main className="flex flex-1 flex-col h-full overflow-hidden relative">
         {/* HEADER DO CLIENTE */}
-        <header className="flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 lg:px-10 z-10 shadow-sm">
+        <header className="flex h-20 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-8 lg:px-10 z-10 shadow-sm">
           <div className="flex items-center gap-4">
-            <button className="lg:hidden text-slate-500 hover:text-primary focus:outline-none">
+            <button className="lg:hidden text-slate-500 hover:text-[#064384]">
               <span className="material-symbols-outlined">menu</span>
             </button>
             <div>
-              <h2 className="text-xl font-bold text-primary tracking-tight">
-                Painel da Empresa {dadosPortal.empresaNome}
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight">
+                {dadosPortal.empresaNome}
               </h2>
               {projetoAtual && (
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-green-500"></span>
-                  <span className="text-xs text-slate-500">
-                    Projeto Ativo:{" "}
-                    {projetoAtual.TIPOS_CONSULTORIA?.nm_servico ||
-                      "Consultoria"}
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    Projeto:{" "}
+                    {projetoAtual.TIPOS_CONSULTORIA?.nm_servico || "Ativo"}
                   </span>
                 </div>
               )}
@@ -206,119 +234,143 @@ export default function PortalClientePage() {
 
           <div className="flex items-center gap-6">
             <div className="hidden md:flex flex-col items-end">
-              <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
+              <span className="text-[10px] text-slate-400 uppercase tracking-widest font-black">
                 Consultor Responsável
               </span>
-              <span className="text-sm font-bold text-text-main">
+              <span className="text-sm font-bold text-[#064384]">
                 {dadosPortal.consultorNome}
               </span>
             </div>
             <div className="flex items-center gap-3 pl-6 border-l border-slate-200">
-              <button className="relative flex items-center justify-center rounded-full bg-slate-50 p-2 text-slate-600 hover:text-primary hover:bg-blue-50 transition-colors focus:outline-none">
-                <span className="material-symbols-outlined">mail</span>
-                <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-accent border-2 border-white"></span>
-              </button>
-              <div className="h-10 w-10 rounded-full bg-cover bg-center ring-2 ring-slate-100 bg-slate-200 flex items-center justify-center font-bold text-slate-500">
-                EQ
+              <div className="h-10 w-10 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center font-black text-[#064384]">
+                CC
               </div>
             </div>
           </div>
         </header>
 
         {/* CONTEÚDO PRINCIPAL */}
-        <div className="flex-1 overflow-y-auto bg-background-light p-6 lg:p-10">
-          <div className="mx-auto max-w-6xl flex flex-col gap-10">
-            {/* Título da Página */}
+        <div className="flex-1 overflow-y-auto bg-[#F8FAFC] p-8 lg:p-10">
+          <div className="mx-auto max-w-[1200px] flex flex-col gap-10">
             <div className="flex flex-col gap-2">
-              <h1 className="text-3xl font-extrabold text-primary tracking-tight">
-                Visão Geral do Projeto
+              <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+                Andamento da Consultoria
               </h1>
-              <p className="text-text-main/70 max-w-2xl font-medium">
-                Acompanhe o progresso da consultoria de RH em tempo real. Valide
-                as etapas pendentes para avançarmos para a próxima fase.
+              <p className="text-slate-500 font-medium">
+                Acompanhe a evolução do seu projeto e conclua as ações pendentes
+                sob sua responsabilidade.
               </p>
             </div>
 
-            {/* TIMELINE DO PROJETO (Dinâmica) */}
-            <section className="rounded-xl bg-white p-8 shadow-sm border border-slate-200">
-              <div className="flex items-center justify-between mb-10">
-                <h3 className="text-lg font-bold text-primary flex items-center gap-2">
-                  <span className="material-symbols-outlined text-accent">
+            {/* TIMELINE DO PROJETO (Totalmente Dinâmica) */}
+            <section className="rounded-3xl bg-white p-8 lg:p-10 shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between mb-12">
+                <h3 className="text-lg font-black text-[#064384] flex items-center gap-2 uppercase tracking-widest text-sm">
+                  <span className="material-symbols-outlined text-[#FF8323]">
                     timeline
-                  </span>
-                  Timeline do Projeto
+                  </span>{" "}
+                  Mapa do Projeto
                 </h3>
-                <span className="text-sm font-bold text-accent bg-orange-50 px-3 py-1 rounded-full border border-orange-100">
-                  {projetoAtual ? "Em Execução" : "Aguardando Início"}
-                </span>
               </div>
 
               <div className="relative px-4">
-                {/* Linha de fundo */}
-                <div className="absolute left-0 top-[22px] h-1.5 w-full bg-slate-100 rounded-full -z-0"></div>
-                {/* Linha de progresso */}
-                <div className="absolute left-0 top-[22px] h-1.5 w-1/2 bg-gradient-to-r from-success via-accent to-slate-200 rounded-full -z-0"></div>
+                {/* Linha de fundo cinza */}
+                <div className="absolute left-0 top-[24px] h-1.5 w-full bg-slate-100 rounded-full"></div>
+
+                {/* Linha de progresso colorida baseada no status */}
+                <div
+                  className="absolute left-0 top-[24px] h-1.5 rounded-full transition-all duration-1000 bg-gradient-to-r from-green-400 to-green-500"
+                  style={{
+                    width: fase3Concluida
+                      ? "100%"
+                      : fase2Concluida
+                        ? "50%"
+                        : fase1Concluida
+                          ? "25%"
+                          : "0%",
+                  }}
+                ></div>
 
                 <div className="relative z-10 flex w-full justify-between">
-                  {/* Step 1: Concluído */}
-                  <div className="flex flex-col items-center gap-4 group">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success text-white shadow-md ring-4 ring-white">
-                      <span className="material-symbols-outlined">check</span>
-                    </div>
-                    <div className="flex flex-col items-center text-center">
-                      <span className="text-sm font-bold text-text-main">
-                        Diagnóstico Inicial
-                      </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-success mt-1 bg-green-50 px-2 py-0.5 rounded">
-                        Concluído
+                  {/* Step 1: Diagnóstico */}
+                  <div className="flex flex-col items-center gap-4 w-1/3">
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-full shadow-md ring-8 ring-white transition-all
+                      ${fase1Concluida ? "bg-green-500 text-white" : "bg-orange-50 text-[#FF8323] border border-orange-200"}`}
+                    >
+                      <span className="material-symbols-outlined font-bold">
+                        {fase1Concluida ? "check" : "analytics"}
                       </span>
                     </div>
-                  </div>
-
-                  {/* Step 2: Em Andamento */}
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="relative flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white shadow-lg shadow-orange-200 ring-4 ring-white">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-40"></span>
+                    <div className="text-center">
+                      <span className="text-sm font-bold text-slate-800 block">
+                        Diagnóstico RH
+                      </span>
                       <span
-                        className="material-symbols-outlined relative z-10 animate-spin-slow"
-                        style={{ animationDuration: "3s" }}
+                        className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded mt-1 inline-block
+                        ${fase1Concluida ? "text-green-600 bg-green-50" : "text-[#FF8323] bg-orange-50"}`}
                       >
-                        sync
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-center text-center">
-                      <span className="text-sm font-bold text-accent">
-                        {projetoAtual
-                          ? projetoAtual.TIPOS_CONSULTORIA?.nm_servico
-                          : "Definição de Escopo"}
-                      </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-accent mt-1 bg-orange-50 px-2 py-0.5 rounded">
-                        Em Andamento
-                      </span>
-                      <span className="text-xs text-slate-400 mt-1">
-                        Prazo:{" "}
-                        {projetoAtual?.dt_prazo_estimado
-                          ? new Date(
-                              projetoAtual.dt_prazo_estimado,
-                            ).toLocaleDateString("pt-BR")
-                          : "Não definido"}
+                        {fase1Concluida ? "Concluído" : "Em Andamento"}
                       </span>
                     </div>
                   </div>
 
-                  {/* Step 3: Aguardando */}
-                  <div className="flex flex-col items-center gap-4 opacity-50">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 border-2 border-slate-200 ring-4 ring-white">
-                      <span className="material-symbols-outlined">
-                        rocket_launch
+                  {/* Step 2: Mapeamento & Coleta */}
+                  <div
+                    className={`flex flex-col items-center gap-4 w-1/3 transition-all ${!fase1Concluida ? "opacity-40 grayscale" : ""}`}
+                  >
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-full shadow-md ring-8 ring-white transition-all
+                      ${fase2Concluida ? "bg-green-500 text-white" : fase1Concluida ? "bg-[#064384] text-white shadow-blue-900/20" : "bg-slate-100 text-slate-400"}`}
+                    >
+                      <span
+                        className={`material-symbols-outlined font-bold ${!fase2Concluida && fase1Concluida ? "animate-spin-slow" : ""}`}
+                      >
+                        {fase2Concluida ? "check" : "sync"}
                       </span>
                     </div>
-                    <div className="flex flex-col items-center text-center">
-                      <span className="text-sm font-semibold text-slate-500">
-                        Implementação
+                    <div className="text-center">
+                      <span className="text-sm font-bold text-slate-800 block">
+                        Coleta de Dados
                       </span>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1 bg-slate-100 px-2 py-0.5 rounded">
-                        Aguardando
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded mt-1 inline-block
+                        ${fase2Concluida ? "text-green-600 bg-green-50" : fase1Concluida ? "text-[#064384] bg-blue-50" : "text-slate-500 bg-slate-100"}`}
+                      >
+                        {fase2Concluida
+                          ? "Concluído"
+                          : fase1Concluida
+                            ? "Ação Necessária"
+                            : "Aguardando"}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Relatório e Fechamento */}
+                  <div
+                    className={`flex flex-col items-center gap-4 w-1/3 transition-all ${!fase2Concluida ? "opacity-40 grayscale" : ""}`}
+                  >
+                    <div
+                      className={`flex h-14 w-14 items-center justify-center rounded-full shadow-md ring-8 ring-white transition-all
+                      ${fase3Concluida ? "bg-green-500 text-white" : fase2Concluida ? "bg-[#FF8323] text-white" : "bg-slate-100 text-slate-400"}`}
+                    >
+                      <span className="material-symbols-outlined font-bold">
+                        {fase3Concluida ? "verified" : "description"}
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      <span className="text-sm font-bold text-slate-800 block">
+                        Entrega Final
+                      </span>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded mt-1 inline-block
+                        ${fase3Concluida ? "text-green-600 bg-green-50" : fase2Concluida ? "text-[#FF8323] bg-orange-50" : "text-slate-500 bg-slate-100"}`}
+                      >
+                        {fase3Concluida
+                          ? "Projeto Finalizado"
+                          : fase2Concluida
+                            ? "Análise Final"
+                            : "Aguardando"}
                       </span>
                     </div>
                   </div>
@@ -327,118 +379,131 @@ export default function PortalClientePage() {
             </section>
 
             {/* GRIDS INFERIORES */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Central de Aprovações */}
-              <div className="lg:col-span-2 flex flex-col gap-5">
-                <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-                  <span className="material-symbols-outlined filled text-accent">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Ações da Empresa (Dinâmico) */}
+              <div className="flex flex-col gap-5">
+                <h3 className="text-sm font-black uppercase tracking-widest text-[#064384] flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#FF8323]">
                     fact_check
-                  </span>
-                  Central de Aprovações
+                  </span>{" "}
+                  Tarefas da Empresa
                 </h3>
 
-                <div className="relative overflow-hidden rounded-xl bg-white shadow-sm border border-slate-200 group hover:border-accent/30 transition-colors">
-                  <div className="absolute top-0 left-0 w-1.5 h-full bg-accent"></div>
-                  <div className="p-6 sm:p-8 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between">
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <span className="bg-orange-50 text-accent text-[10px] font-extrabold px-2.5 py-1 rounded-md uppercase tracking-wider">
-                          Ação Necessária
-                        </span>
-                        <span className="text-slate-400 text-xs">
-                          Atualizado hoje
-                        </span>
-                      </div>
-                      <h4 className="text-lg font-bold text-text-main">
-                        Aprovação de Mapeamento
+                {progresso.climaStatus === "ATIVO" && projetoAtual ? (
+                  <div className="rounded-2xl bg-white shadow-sm border border-orange-200 p-6 flex flex-col gap-4 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-[#FF8323]"></div>
+                    <div>
+                      <span className="bg-orange-50 text-[#FF8323] text-[10px] font-black px-2.5 py-1 rounded uppercase tracking-wider">
+                        Urgente
+                      </span>
+                      <h4 className="text-lg font-black text-slate-800 mt-3">
+                        Aplicação da Pesquisa de Clima
                       </h4>
-                      <p className="text-text-main/70 text-sm leading-relaxed font-medium">
-                        A equipe de consultoria enviou os documentos referentes
-                        à fase inicial do projeto. Precisamos da sua validação
-                        para prosseguir com a próxima etapa.
+                      <p className="text-slate-500 text-sm font-medium mt-1">
+                        A pesquisa está liberada. Copie o link abaixo e envie
+                        para todos os colaboradores responderem de forma
+                        anônima.
                       </p>
                     </div>
-                    <div className="flex flex-col items-center gap-3 min-w-[160px]">
-                      <button className="w-full rounded-lg bg-accent hover:bg-accent-dark text-white font-bold py-3 px-6 shadow-md shadow-orange-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none">
-                        <span>Revisar Agora</span>
-                        <span className="material-symbols-outlined text-[18px]">
-                          arrow_forward
-                        </span>
-                      </button>
-                      <span className="text-xs text-primary font-bold">
-                        2 itens pendentes
+                    <button
+                      onClick={() => copiarLinkClima(projetoAtual.cd_projeto)}
+                      className={`w-full py-3 rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2
+                        ${linkCopiado ? "bg-green-500 text-white" : "bg-[#FF8323] hover:bg-orange-600 text-white"}`}
+                    >
+                      <span className="material-symbols-outlined">
+                        {linkCopiado ? "check_circle" : "content_copy"}
                       </span>
-                    </div>
+                      {linkCopiado
+                        ? "Link Copiado para Envio!"
+                        : "Copiar Link da Pesquisa"}
+                    </button>
                   </div>
-                </div>
+                ) : progresso.qtdDisc === 0 && fase1Concluida ? (
+                  <div className="rounded-2xl bg-white shadow-sm border border-slate-200 p-6 flex flex-col gap-4">
+                    <h4 className="text-lg font-black text-slate-800">
+                      Mapeamento DISC
+                    </h4>
+                    <p className="text-slate-500 text-sm font-medium">
+                      Sua equipe precisa realizar os testes comportamentais.
+                      Aguarde as instruções do consultor.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl bg-slate-50 border border-slate-200 border-dashed p-8 text-center flex flex-col items-center justify-center">
+                    <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">
+                      task_alt
+                    </span>
+                    <h4 className="text-sm font-bold text-slate-500">
+                      Nenhuma ação pendente
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      O projeto está rodando conforme o cronograma.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Entregáveis e Documentos */}
+              {/* Entregáveis e Documentos (Dinâmico) */}
               <div className="flex flex-col gap-5">
-                <h3 className="text-xl font-bold text-primary flex items-center gap-2">
-                  <span className="material-symbols-outlined filled text-primary">
+                <h3 className="text-sm font-black uppercase tracking-widest text-[#064384] flex items-center gap-2">
+                  <span className="material-symbols-outlined">
                     folder_shared
-                  </span>
-                  Entregáveis
+                  </span>{" "}
+                  Entregáveis Disponíveis
                 </h3>
 
-                <div className="rounded-xl bg-white shadow-sm border border-slate-200 overflow-hidden">
+                <div className="rounded-2xl bg-white shadow-sm border border-slate-200 overflow-hidden">
                   <div className="divide-y divide-slate-100">
-                    <div className="p-4 hover:bg-slate-50 transition-colors group">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg bg-red-50 flex items-center justify-center text-red-500 border border-red-100">
+                    {fase1Concluida ? (
+                      <div className="p-5 hover:bg-slate-50 transition-colors flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="size-10 rounded-xl bg-blue-50 flex items-center justify-center text-[#064384]">
                             <span className="material-symbols-outlined">
-                              picture_as_pdf
+                              analytics
                             </span>
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-text-main group-hover:text-primary transition-colors">
-                              Cronograma Inicial
+                          <div>
+                            <span className="text-sm font-bold text-slate-800 block">
+                              Diagnóstico de Maturidade RH
                             </span>
-                            <span className="text-xs text-slate-400">
-                              Documento • 2.4 MB
+                            <span className="text-xs text-green-600 font-bold mt-0.5">
+                              Disponível no sistema
                             </span>
                           </div>
                         </div>
-                        <button className="p-2 rounded-full hover:bg-blue-50 text-slate-400 hover:text-primary transition-colors focus:outline-none">
-                          <span className="material-symbols-outlined">
-                            download
-                          </span>
-                        </button>
+                        <span className="material-symbols-outlined text-slate-300">
+                          chevron_right
+                        </span>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="p-6 text-center text-sm font-medium text-slate-400 italic">
+                        Diagnóstico em elaboração pelo consultor.
+                      </div>
+                    )}
 
-                    <div className="p-4 hover:bg-slate-50 transition-colors group">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center text-primary border border-blue-100">
-                            <span className="material-symbols-outlined">
-                              description
-                            </span>
+                    {progresso.temClima &&
+                      progresso.climaStatus === "CONCLUIDO" && (
+                        <div className="p-5 hover:bg-slate-50 transition-colors flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="size-10 rounded-xl bg-orange-50 flex items-center justify-center text-[#FF8323]">
+                              <span className="material-symbols-outlined">
+                                thermostat
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-sm font-bold text-slate-800 block">
+                                Relatório de Clima
+                              </span>
+                              <span className="text-xs text-slate-400 font-medium mt-0.5">
+                                Análise Estatística Concluída
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-text-main group-hover:text-primary transition-colors">
-                              Apresentação de Kickoff
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              Slide • 1.1 MB
-                            </span>
-                          </div>
+                          <span className="material-symbols-outlined text-slate-300">
+                            chevron_right
+                          </span>
                         </div>
-                        <button className="p-2 rounded-full hover:bg-blue-50 text-slate-400 hover:text-primary transition-colors focus:outline-none">
-                          <span className="material-symbols-outlined">
-                            download
-                          </span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50 p-3 text-center border-t border-slate-100">
-                    <button className="text-xs font-bold text-primary hover:text-accent hover:underline uppercase tracking-wide focus:outline-none">
-                      Ver todos os arquivos
-                    </button>
+                      )}
                   </div>
                 </div>
               </div>
