@@ -1,15 +1,18 @@
 "use client";
 
+import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 
 // Definição dos dados dos templates exatamente como no seu design
+// Adicionei os nomes de arquivos para cada um deles buscar no Supabase
 const templatesList = [
   {
     id: 1,
     category: "Estrutura",
     title: "Descrição de Cargos",
     desc: "Modelo padronizado para definir responsabilidades, requisitos e competências de cada cargo.",
+    arquivo: "descricao-cargos.docx",
     color: "bg-blue-50 text-blue-600",
   },
   {
@@ -17,6 +20,7 @@ const templatesList = [
     category: "R&S",
     title: "Fluxo de Recrutamento",
     desc: "Processo completo de recrutamento e seleção: divulgação, triagem, entrevista, admissão.",
+    arquivo: "fluxo-recrutamento.xlsx",
     color: "bg-orange-50 text-orange-600",
   },
   {
@@ -24,6 +28,7 @@ const templatesList = [
     category: "R&S",
     title: "Roteiro de Entrevista",
     desc: "Perguntas comportamentais e técnicas estruturadas por competência.",
+    arquivo: "roteiro-entrevista.doc",
     color: "bg-orange-50 text-orange-600",
   },
   {
@@ -31,6 +36,7 @@ const templatesList = [
     category: "Desempenho",
     title: "Matriz de Avaliação",
     desc: "Critérios objetivos para avaliação de desempenho por competência e resultado.",
+    arquivo: "matriz-avaliacao.pdf",
     color: "bg-sky-50 text-sky-600",
   },
   {
@@ -38,6 +44,7 @@ const templatesList = [
     category: "Remuneração",
     title: "Plano de Cargos e Salários",
     desc: "Estrutura de faixas salariais, critérios de progressão e enquadramento.",
+    arquivo: "plano-cargos-salarios.pdf",
     color: "bg-green-50 text-green-600",
   },
   {
@@ -45,6 +52,7 @@ const templatesList = [
     category: "Remuneração",
     title: "Faixas Salariais",
     desc: "Tabela de faixas salariais por cargo com piso, médio e teto.",
+    arquivo: "faixas-salariais.xlsx",
     color: "bg-green-50 text-green-600",
   },
   {
@@ -52,41 +60,39 @@ const templatesList = [
     category: "Desenvolvimento",
     title: "LNT – Levantamento de Necessidades",
     desc: "Diagnóstico de gaps de competência e necessidades de treinamento.",
+    arquivo: "lnt-levantamento.docx",
     color: "bg-yellow-50 text-yellow-600",
   },
-  {
-    id: 8,
-    category: "Desenvolvimento",
-    title: "PDI – Plano de Desenvolvimento",
-    desc: "Plano personalizado de desenvolvimento com metas, prazos e ações.",
-    color: "bg-yellow-50 text-yellow-600",
-  },
+  // {
+  //   id: 8,
+  //   category: "Desenvolvimento",
+  //   title: "PDI – Plano de Desenvolvimento",
+  //   desc: "Plano personalizado de desenvolvimento com metas, prazos e ações.",
+  //   arquivo: "pdi-plano.pdf",
+  //   color: "bg-yellow-50 text-yellow-600",
+  // },
   {
     id: 9,
     category: "Desempenho",
     title: "Avaliação de Desempenho",
     desc: "Formulário completo de avaliação 90°/180°/360° adaptável.",
+    arquivo: "avaliacao-desempenho.xlsx",
     color: "bg-sky-50 text-sky-600",
-  },
-  {
-    id: 10,
-    category: "Clima",
-    title: "Pesquisa de Clima",
-    desc: "Questionário de clima organizacional por domínios com escala Likert.",
-    color: "bg-indigo-50 text-indigo-600",
   },
   {
     id: 11,
     category: "Gestão",
     title: "Plano de Ação 30/60/90 dias",
     desc: "Plano de ações com responsáveis, prazos e indicadores de acompanhamento.",
+    arquivo: "plano-acao.xlsx",
     color: "bg-slate-100 text-slate-600",
   },
   {
     id: 12,
     category: "Gestão",
-    title: "Relatório Final Executivo",
-    desc: "Template do relatório de entrega com todos os resultados consolidados.",
+    title: "Regulamento Interno",
+    desc: "Documento completo com regras e procedimentos internos da empresa.",
+    arquivo: "regulamento-interno.docx",
     color: "bg-slate-100 text-slate-600",
   },
 ];
@@ -96,76 +102,69 @@ export default function TemplatesPage() {
   const params = useParams();
   const [downloading, setDownloading] = useState<number | null>(null);
 
-  // Função MÁGICA: Gera um arquivo real no navegador do usuário e faz o download
-  // No futuro, você pode trocar a URL gerada por um link do Supabase Storage
-  const baixarTemplate = (template: (typeof templatesList)[0]) => {
+  // Função que puxa do Supabase Storage
+  const baixarTemplate = async (template: (typeof templatesList)[0]) => {
+    if (!template.arquivo) return;
+
     setDownloading(template.id);
 
-    setTimeout(() => {
-      // 1. Criamos o conteúdo do documento
-      const conteudo = `
-===================================================
-TEMPLATE: ${template.title.toUpperCase()}
-CATEGORIA: ${template.category}
-===================================================
+    try {
+      // Puxa o arquivo de um Bucket do Supabase chamado "templates"
+      const { data, error } = await supabase.storage
+        .from("templates")
+        .download(template.arquivo);
 
-DESCRIÇÃO:
-${template.desc}
+      if (error) {
+        throw error;
+      }
 
-INSTRUÇÕES DE USO:
-Este é um template padrão da consultoria CoreConsulta.
-Preencha os dados abaixo de acordo com a realidade da empresa cliente.
-
----------------------------------------------------
-[ÁREA DE CONTEÚDO EDITÁVEL DO TEMPLATE]
----------------------------------------------------
-
-Empresa: 
-Data: 
-Responsável: 
-
-(Insira aqui os dados estruturados conforme a ferramenta)
-
-===================================================
-CoreConsulta - Gestão de Pessoas 360°
-      `;
-
-      // 2. Transformamos em um Blob (Arquivo binário/texto)
-      const blob = new Blob([conteudo], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-
-      // 3. Forçamos o download via navegador
+      // Transforma os dados em um link e força o navegador a fazer o download
+      const url = window.URL.createObjectURL(data);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Template_${template.category}_${template.title.replace(/\s+/g, "_")}.txt`;
+      link.download = template.arquivo;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Erro ao baixar do Supabase:", error);
+      alert(
+        `Não foi possível baixar "${template.title}". Verifique se o arquivo existe no Supabase Storage.`,
+      );
+    } finally {
       setDownloading(null);
-    }, 600); // Um pequeno delay para dar sensação de processamento
+    }
   };
 
-  const baixarTodos = () => {
-    alert("Iniciando download consolidado de todos os templates...");
-    templatesList.forEach((t, index) => {
-      setTimeout(() => baixarTemplate(t), index * 300);
-    });
+  const baixarTodos = async () => {
+    alert("Iniciando download consolidado de todos os templates do sistema...");
+    for (const template of templatesList) {
+      await baixarTemplate(template);
+      // Pequeno delay entre um arquivo e outro para o navegador não bloquear pop-ups
+      await new Promise((resolve) => setTimeout(resolve, 800));
+    }
   };
 
   return (
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col pb-20">
       {/* HEADER DE NAVEGAÇÃO */}
-      <header className="flex items-center justify-between px-8 py-4 bg-white border-b border-slate-200 sticky top-0 z-50 shrink-0">
+      <header className="bg-white/95 backdrop-blur-sm pt-8 pb-6 px-8 flex justify-between items-end border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0">
+        <div>
+          <h2 className="text-3xl font-extrabold text-[#064384] tracking-tight">
+            Templates
+          </h2>
+          <p className="text-sm text-slate-500 font-medium mt-1">
+            Templates padronizados para acelerar a entrega de resultados e
+            garantir consistência em todos os projetos de consultoria.
+          </p>
+        </div>
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 text-[#064384] hover:opacity-70 text-sm font-bold transition-colors"
+          className="text-slate-400 hover:text-[#064384] transition-colors focus:outline-none flex items-center gap-2 font-bold text-sm"
         >
-          <span className="material-symbols-outlined text-[18px]">
-            arrow_back
-          </span>{" "}
-          Voltar ao Dashboard
+          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          Voltar
         </button>
       </header>
 
@@ -223,7 +222,7 @@ CoreConsulta - Gestão de Pessoas 360°
                 {template.desc}
               </p>
 
-              {/* BOTÃO DE DOWNLOAD INDIVIDUAL */}
+              {/* BOTÃO DE DOWNLOAD CONECTADO AO SUPABASE */}
               <button
                 onClick={() => baixarTemplate(template)}
                 disabled={downloading === template.id}
@@ -238,9 +237,7 @@ CoreConsulta - Gestão de Pessoas 360°
                 <span className="material-symbols-outlined text-[18px]">
                   {downloading === template.id ? "hourglass_empty" : "download"}
                 </span>
-                {downloading === template.id
-                  ? "Baixando..."
-                  : "Baixar Template"}
+                {downloading === template.id ? "Baixando..." : "Baixar"}
               </button>
             </div>
           ))}

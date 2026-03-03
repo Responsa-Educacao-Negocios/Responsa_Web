@@ -4,216 +4,491 @@ import { supabase } from "@/lib/supabase";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const dimensoes = [
+// --- METODOLOGIA: GESTÃO DE PESSOAS 360º ---
+const DOMINIOS = [
   {
-    id: "nr_lideranca",
-    label: "Liderança",
-    desc: "Como você avalia o suporte, a acessibilidade e a conduta da sua liderança direta?",
+    id: "lideranca",
+    titulo: "Liderança",
+    icon: "engineering",
+    perguntas: [
+      "Meu líder demonstra respeito no trato com a equipe.",
+      "Recebo orientações claras sobre minhas atividades.",
+      "Meu líder dá feedbacks construtivos.",
+      "Meu líder reconhece bons resultados.",
+      "Posso conversar com meu líder quando tenho dificuldades.",
+      "As decisões da liderança são justas.",
+      "Sinto confiança na liderança da empresa.",
+    ],
   },
   {
-    id: "nr_comunicac",
-    label: "Comunicação",
-    desc: "As informações fluem de forma clara e transparente entre os setores e a diretoria?",
+    id: "comunicac",
+    titulo: "Comunicação",
+    icon: "forum",
+    perguntas: [
+      "As informações importantes chegam até mim com clareza.",
+      "Existe transparência nas decisões da empresa.",
+      "Sei o que a empresa espera de mim.",
+      "A comunicação entre setores funciona bem.",
+      "Tenho espaço para dar sugestões.",
+      "Mudanças são comunicadas com antecedência.",
+    ],
   },
   {
-    id: "nr_reconhecir",
-    label: "Reconhecimento",
-    desc: "Você sente que seus esforços e resultados são devidamente valorizados pela empresa?",
+    id: "reconhecir",
+    titulo: "Reconhecimento",
+    icon: "workspace_premium",
+    perguntas: [
+      "Meu esforço é valorizado.",
+      "Existe reconhecimento por bom desempenho.",
+      "As promoções seguem critérios claros.",
+      "O salário é compatível com minha função.",
+      "Sinto que meu trabalho é importante para a empresa.",
+      "A empresa demonstra valorização pelos colaboradores.",
+    ],
   },
   {
-    id: "nr_desenvolvi",
-    label: "Desenvolvimento",
-    desc: "A empresa oferece oportunidades reais de aprendizado e crescimento na carreira?",
+    id: "desenvolvi",
+    titulo: "Desenvolvimento",
+    icon: "trending_up",
+    perguntas: [
+      "Tenho oportunidades de crescimento.",
+      "Recebo treinamentos quando necessário.",
+      "A empresa investe no desenvolvimento da equipe.",
+      "Tenho clareza sobre como posso evoluir profissionalmente aqui.",
+      "Recebo orientações para melhorar meu desempenho.",
+      "Sinto que estou aprendendo coisas novas.",
+    ],
   },
   {
-    id: "nr_ambiente",
-    label: "Ambiente",
-    desc: "O ambiente físico e o relacionamento com seus colegas favorecem a produtividade?",
+    id: "ambiente",
+    titulo: "Ambiente de Trabalho",
+    icon: "emoji_nature",
+    perguntas: [
+      "O ambiente físico é adequado.",
+      "Existe respeito entre colegas.",
+      "O clima entre os setores é positivo.",
+      "Há cooperação entre a equipe.",
+      "Conflitos são resolvidos de forma adequada.",
+      "Sinto segurança no ambiente de trabalho.",
+    ],
   },
   {
-    id: "nr_engajamen",
-    label: "Engajamento",
-    desc: "O quanto você se sente motivado e orgulhoso em fazer parte desta organização?",
-  },
-  {
-    id: "ds_comentario",
-    label: "Sugestões e Comentários",
-    desc: "Espaço aberto para você compartilhar percepções que não foram cobertas nas notas anteriores.",
-    type: "text",
+    id: "engajamen",
+    titulo: "Engajamento",
+    icon: "favorite",
+    perguntas: [
+      "Tenho orgulho de trabalhar nesta empresa.",
+      "Recomendo esta empresa como um bom lugar para trabalhar.",
+      "Sinto motivação para entregar bons resultados.",
+      "Pretendo permanecer na empresa nos próximos anos.",
+      "A empresa me inspira a dar o meu melhor.",
+      "Sinto que faço parte de algo importante.",
+    ],
   },
 ];
 
-export default function PesquisaClimaColaborador() {
+const PERGUNTAS_ABERTAS = [
+  { id: "q1", label: "O que a empresa faz muito bem?" },
+  { id: "q2", label: "O que precisa melhorar com urgência?" },
+  { id: "q3", label: "O que faria você se sentir mais valorizado?" },
+];
+
+export default function PesquisaClimaPage() {
   const params = useParams();
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [respostas, setRespostas] = useState<any>({});
-  const [enviando, setEnviando] = useState(false);
+
+  const [loading, setLoading] = useState(true);
   const [empresaNome, setEmpresaNome] = useState("");
+  const [projetoValido, setProjetoValido] = useState(false);
+
+  // Controle de Telas (0 = Intro, 1 a 6 = Domínios, 7 = Abertas, 8 = Sucesso)
+  const [currentStep, setCurrentStep] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Estados das Respostas
+  const [respostasQuant, setRespostasQuant] = useState<Record<string, number>>(
+    {},
+  );
+  const [respostasQuali, setRespostasQuali] = useState<Record<string, string>>(
+    {},
+  );
 
   useEffect(() => {
-    const fetchEmpresa = async () => {
-      const { data } = await supabase
-        .from("PROJETOS")
-        .select("EMPRESAS(nm_fantasia)")
-        .eq("cd_projeto", params.id)
-        .single();
-      if (data) setEmpresaNome((data as any).EMPRESAS.nm_fantasia);
+    const validarProjeto = async () => {
+      try {
+        const projetoId = params.id as string;
+
+        // Verifica se o projeto existe e se a pesquisa está ATIVA
+        const { data: proj } = await supabase
+          .from("PROJETOS")
+          .select("EMPRESAS(nm_fantasia)")
+          .eq("cd_projeto", projetoId)
+          .single();
+
+        if (proj) {
+          const empresa = Array.isArray(proj.EMPRESAS)
+            ? proj.EMPRESAS[0]
+            : proj.EMPRESAS;
+          setEmpresaNome(empresa?.nm_fantasia || "a Empresa");
+          setProjetoValido(true);
+
+          // Inicializa todas as respostas quantitativas com 50% (Neutro)
+          const iniciais: Record<string, number> = {};
+          DOMINIOS.forEach((d) => {
+            d.perguntas.forEach((_, i) => {
+              iniciais[`${d.id}_${i}`] = 50;
+            });
+          });
+          setRespostasQuant(iniciais);
+        }
+      } catch (error) {
+        console.error("Erro ao validar:", error);
+      } finally {
+        setLoading(false);
+      }
     };
-    if (params.id) fetchEmpresa();
+
+    if (params.id) validarProjeto();
   }, [params.id]);
 
-  const itemAtual = dimensoes[step];
-  const progresso = ((step + 1) / dimensoes.length) * 100;
-
-  const handleProximo = async () => {
-    if (step < dimensoes.length - 1) {
-      setStep(step + 1);
-      window.scrollTo(0, 0);
-    } else {
-      enviarPesquisa();
-    }
+  const handleSliderChange = (
+    dominioId: string,
+    perguntaIndex: number,
+    valor: number,
+  ) => {
+    setRespostasQuant((prev) => ({
+      ...prev,
+      [`${dominioId}_${perguntaIndex}`]: valor,
+    }));
   };
 
-  const enviarPesquisa = async () => {
-    setEnviando(true);
+  const handleNext = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setCurrentStep((curr) => curr + 1);
+  };
+
+  const handlePrev = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setCurrentStep((curr) => curr - 1);
+  };
+
+  const finalizarPesquisa = async () => {
+    setIsSaving(true);
+    const projetoId = params.id as string;
+
+    // Calcula a média de cada domínio para salvar no banco exatamente como o Relatório espera
+    const medias: Record<string, number> = {};
+    DOMINIOS.forEach((d) => {
+      let soma = 0;
+      d.perguntas.forEach((_, i) => {
+        soma += respostasQuant[`${d.id}_${i}`] || 50;
+      });
+      medias[d.id] = Math.round(soma / d.perguntas.length);
+    });
+
+    const payload = {
+      cd_projeto: projetoId,
+      nr_lideranca: medias["lideranca"],
+      nr_comunicac: medias["comunicac"],
+      nr_reconhecir: medias["reconhecir"],
+      nr_desenvolvi: medias["desenvolvi"],
+      nr_ambiente: medias["ambiente"],
+      nr_engajamen: medias["engajamen"],
+      js_respostas_abertas: respostasQuali,
+    };
+
     try {
       const { error } = await supabase
         .from("RESPOSTAS_INDIVIDUAIS_CLIMA")
-        .insert([
-          {
-            cd_projeto: params.id,
-            ...respostas,
-          },
-        ]);
-
+        .insert([payload]);
       if (error) throw error;
-      router.push("/sucesso");
-    } catch (err) {
-      alert("Erro ao enviar respostas. Tente novamente.");
+
+      setCurrentStep(8); // Tela de Sucesso
+    } catch (error) {
+      console.error("Erro ao salvar:", error);
+      alert("Houve um erro ao enviar sua pesquisa. Tente novamente.");
     } finally {
-      setEnviando(false);
+      setIsSaving(false);
     }
   };
 
-  return (
-    <div className="bg-[#F9FAFB] min-h-screen font-sans flex flex-col items-center py-12 px-4 relative overflow-hidden">
-      {/* Detalhes de Fundo */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-secondary/5 rounded-full blur-3xl -z-10"></div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-[#064384] font-bold animate-pulse">
+        Carregando pesquisa...
+      </div>
+    );
+  }
 
-      <header className="mb-10 text-center">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <div className="bg-primary p-1.5 rounded-lg shadow-sm">
-            <span className="material-symbols-outlined text-white text-xl block">
-              analytics
-            </span>
-          </div>
-          <span className="text-[#064384] font-black text-xl tracking-tighter uppercase">
-            CoreConsulta
+  if (!projetoValido) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center text-red-500 font-bold">
+        Link de pesquisa inválido ou expirado.
+      </div>
+    );
+  }
+
+  // --- TELA DE SUCESSO ---
+  if (currentStep === 8) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="size-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-green-500/20">
+          <span className="material-symbols-outlined text-4xl">
+            check_circle
           </span>
         </div>
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">
-          Diagnóstico de Clima: {empresaNome}
-        </h2>
-      </header>
+        <h1 className="text-2xl font-black text-slate-800 mb-2">
+          Pesquisa Concluída!
+        </h1>
+        <p className="text-slate-500 max-w-md">
+          Suas respostas foram enviadas com sucesso de forma 100% anônima.
+          Agradecemos sua sinceridade, ela é fundamental para melhorarmos nosso
+          ambiente.
+        </p>
+      </div>
+    );
+  }
 
-      <main className="w-full max-w-2xl bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden animate-in fade-in zoom-in-95 duration-500">
-        {/* Progress bar */}
-        <div className="h-1.5 w-full bg-slate-100">
+  // --- TELA DE INTRODUÇÃO ---
+  if (currentStep === 0) {
+    return (
+      <div className="min-h-screen bg-[#F1F5F9] font-sans flex flex-col">
+        <header className="bg-[#064384] text-white p-6 text-center shadow-md">
+          <h1 className="text-xl font-black uppercase tracking-widest">
+            Pesquisa de Clima
+          </h1>
+          <p className="text-blue-200 text-sm font-medium mt-1">
+            {empresaNome}
+          </p>
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center p-6">
+          <div className="bg-white max-w-lg w-full rounded-2xl shadow-xl p-8 text-center border border-slate-200">
+            <div className="size-16 bg-blue-50 text-[#064384] mx-auto rounded-2xl flex items-center justify-center mb-6">
+              <span className="material-symbols-outlined text-3xl">
+                psychology_alt
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 mb-4">
+              Sua voz importa.
+            </h2>
+            <p className="text-slate-500 mb-6 leading-relaxed">
+              Esta pesquisa é{" "}
+              <strong className="text-slate-800">100% anônima</strong> e tem
+              como objetivo melhorar o nosso ambiente de trabalho.
+            </p>
+            <div className="bg-slate-50 p-4 rounded-xl mb-8 text-left border border-slate-100">
+              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">
+                Como responder:
+              </p>
+              <ul className="text-sm text-slate-600 space-y-2 font-medium">
+                <li className="flex items-center gap-2">
+                  <span className="text-red-500 font-black">0%</span> Totalmente
+                  insatisfeito
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-orange-500 font-black">50%</span> Neutro
+                  (Nem sim, nem não)
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-600 font-black">100%</span>{" "}
+                  Totalmente satisfeito
+                </li>
+              </ul>
+            </div>
+            <button
+              onClick={handleNext}
+              className="w-full bg-[#FF8323] hover:bg-orange-600 text-white font-black py-4 rounded-xl shadow-lg shadow-orange-500/30 transition-all active:scale-95 flex justify-center items-center gap-2"
+            >
+              Começar Agora{" "}
+              <span className="material-symbols-outlined">arrow_forward</span>
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // --- TELAS DOS DOMÍNIOS (1 a 6) ---
+  if (currentStep >= 1 && currentStep <= 6) {
+    const dominioIndex = currentStep - 1;
+    const dominio = DOMINIOS[dominioIndex];
+    const progresso = (currentStep / 7) * 100;
+
+    return (
+      <div className="min-h-screen bg-[#F1F5F9] font-sans flex flex-col pb-24">
+        {/* Progress Bar */}
+        <div className="fixed top-0 left-0 w-full h-1.5 bg-slate-200 z-50">
           <div
-            className="h-full bg-primary transition-all duration-500"
+            className="h-full bg-[#FF8323] transition-all duration-500"
             style={{ width: `${progresso}%` }}
           ></div>
         </div>
 
-        <div className="p-10 sm:p-14">
-          <div className="mb-10">
-            <span className="text-[10px] font-black text-primary uppercase tracking-widest mb-2 block">
-              Questão {step + 1} de {dimensoes.length}
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight leading-tight">
-              {itemAtual.label}
-            </h1>
-            <p className="text-slate-500 mt-4 text-base font-medium leading-relaxed">
-              {itemAtual.desc}
-            </p>
+        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3 sticky top-1.5 z-40 shadow-sm">
+          <div className="size-10 bg-blue-50 text-[#064384] rounded-lg flex items-center justify-center">
+            <span className="material-symbols-outlined">{dominio.icon}</span>
           </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Domínio {currentStep} de 6
+            </p>
+            <h2 className="text-lg font-black text-slate-800">
+              {dominio.titulo}
+            </h2>
+          </div>
+        </header>
 
-          {itemAtual.type === "text" ? (
-            <textarea
-              className="w-full h-40 p-5 rounded-2xl border-2 border-slate-100 bg-slate-50 focus:border-primary focus:ring-0 outline-none transition-all text-slate-700 font-medium"
-              placeholder="Sua opinião é fundamental para melhorarmos..."
-              value={respostas[itemAtual.id] || ""}
-              onChange={(e) =>
-                setRespostas({ ...respostas, [itemAtual.id]: e.target.value })
-              }
-            />
-          ) : (
-            <div className="space-y-6">
-              <div className="flex justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <span>Muito Insatisfeito</span>
-                <span>Totalmente Satisfeito</span>
-              </div>
-              <div className="grid grid-cols-5 sm:grid-cols-10 gap-2">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                  <button
-                    key={num}
-                    onClick={() =>
-                      setRespostas({ ...respostas, [itemAtual.id]: num })
+        <main className="max-w-2xl mx-auto w-full p-4 sm:p-6 space-y-6 mt-4">
+          {dominio.perguntas.map((pergunta, index) => {
+            const val = respostasQuant[`${dominio.id}_${index}`];
+            let corBarra = "accent-[#FF8323]"; // Laranja (Neutro)
+            if (val < 40) corBarra = "accent-red-500"; // Crítico
+            if (val >= 70) corBarra = "accent-green-500"; // Positivo
+
+            return (
+              <div
+                key={index}
+                className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-5"
+              >
+                <p className="text-sm sm:text-base font-bold text-slate-700">
+                  {pergunta}
+                </p>
+
+                <div>
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-2xl font-black text-[#064384]">
+                      {val}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="5"
+                    value={val}
+                    onChange={(e) =>
+                      handleSliderChange(
+                        dominio.id,
+                        index,
+                        parseInt(e.target.value),
+                      )
                     }
-                    className={`h-12 sm:h-14 rounded-xl font-black text-lg transition-all duration-200 border-2 
-                      ${
-                        respostas[itemAtual.id] === num
-                          ? "bg-primary border-primary text-white scale-110 shadow-lg shadow-primary/20"
-                          : "bg-white border-slate-100 text-slate-300 hover:border-primary/40 hover:text-primary"
-                      }`}
-                  >
-                    {num}
-                  </button>
-                ))}
+                    className={`w-full h-3 bg-slate-100 rounded-lg appearance-none cursor-pointer ${corBarra}`}
+                  />
+                  <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-wider">
+                    <span>Insatisfeito</span>
+                    <span>Neutro</span>
+                    <span>Satisfeito</span>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            );
+          })}
+        </main>
 
-        <div className="px-10 py-8 bg-slate-50/50 border-t border-slate-100 flex justify-between items-center">
+        {/* Rodapé Flutuante de Navegação */}
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 px-6 flex justify-between items-center z-50">
           <button
-            onClick={() => setStep(step - 1)}
-            disabled={step === 0 || enviando}
-            className="text-sm font-bold text-slate-400 hover:text-slate-600 disabled:opacity-0 transition-colors"
+            onClick={handlePrev}
+            className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
           >
             Voltar
           </button>
-
           <button
-            onClick={handleProximo}
-            disabled={
-              (!respostas[itemAtual.id] && itemAtual.type !== "text") ||
-              enviando
-            }
-            className="bg-secondary hover:bg-orange-600 text-white px-10 py-3.5 rounded-2xl font-black uppercase tracking-widest text-[11px] shadow-lg shadow-orange-500/20 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+            onClick={handleNext}
+            className="bg-[#064384] text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-900/20 active:scale-95 transition-all flex items-center gap-2"
           >
-            {enviando
-              ? "Enviando..."
-              : step === dimensoes.length - 1
-                ? "Finalizar"
-                : "Próxima"}
-            {!enviando && (
-              <span className="material-symbols-outlined text-base">
-                arrow_forward
-              </span>
-            )}
+            Próximo{" "}
+            <span className="material-symbols-outlined text-sm">
+              arrow_forward
+            </span>
           </button>
         </div>
-      </main>
+      </div>
+    );
+  }
 
-      <footer className="mt-8 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-        <span className="material-symbols-outlined text-green-500 text-sm">
-          lock
-        </span>
-        Sua participação é 100% anônima e segura
-      </footer>
-    </div>
-  );
+  // --- TELA DE PERGUNTAS ABERTAS (Passo 7) ---
+  if (currentStep === 7) {
+    const progresso = 100;
+    return (
+      <div className="min-h-screen bg-[#F1F5F9] font-sans flex flex-col pb-24">
+        <div className="fixed top-0 left-0 w-full h-1.5 bg-slate-200 z-50">
+          <div
+            className="h-full bg-green-500 transition-all duration-500"
+            style={{ width: `${progresso}%` }}
+          ></div>
+        </div>
+
+        <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-3 sticky top-1.5 z-40 shadow-sm">
+          <div className="size-10 bg-orange-50 text-[#FF8323] rounded-lg flex items-center justify-center">
+            <span className="material-symbols-outlined">edit_note</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Etapa Final
+            </p>
+            <h2 className="text-lg font-black text-slate-800">Sua Opinião</h2>
+          </div>
+        </header>
+
+        <main className="max-w-2xl mx-auto w-full p-4 sm:p-6 space-y-6 mt-4">
+          <div className="bg-blue-50 text-[#064384] p-4 rounded-xl text-sm font-medium border border-blue-100">
+            Responda com suas próprias palavras. Sinta-se à vontade para não
+            responder caso não queira.
+          </div>
+
+          {PERGUNTAS_ABERTAS.map((pergunta) => (
+            <div
+              key={pergunta.id}
+              className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-3"
+            >
+              <label className="text-sm font-bold text-slate-700">
+                {pergunta.label}
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Escreva sua resposta aqui..."
+                value={respostasQuali[pergunta.id] || ""}
+                onChange={(e) =>
+                  setRespostasQuali({
+                    ...respostasQuali,
+                    [pergunta.id]: e.target.value,
+                  })
+                }
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 outline-none focus:ring-2 focus:ring-[#FF8323]/50 transition-all text-sm resize-none"
+              ></textarea>
+            </div>
+          ))}
+        </main>
+
+        <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-200 p-4 px-6 flex justify-between items-center z-50">
+          <button
+            onClick={handlePrev}
+            className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+          >
+            Voltar
+          </button>
+          <button
+            onClick={finalizarPesquisa}
+            disabled={isSaving}
+            className="bg-green-500 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-green-500/20 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-70"
+          >
+            {isSaving ? (
+              <span className="material-symbols-outlined animate-spin text-sm">
+                sync
+              </span>
+            ) : (
+              <span className="material-symbols-outlined text-sm">
+                check_circle
+              </span>
+            )}
+            Finalizar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }

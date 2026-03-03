@@ -208,7 +208,7 @@ export default function ClimaOrganizacionalPage() {
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col pb-20">
       <header className="bg-white/95 backdrop-blur-sm pt-8 pb-6 px-8 flex justify-between items-end border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0">
         <div>
-          <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
+          <h2 className="text-3xl font-extrabold text-primary tracking-tight">
             Clima Organizacional
           </h2>
           <p className="text-sm text-slate-500 font-medium mt-1">
