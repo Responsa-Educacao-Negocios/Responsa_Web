@@ -85,6 +85,80 @@ export default function RelatorioPsicometricoPage() {
     );
   }
 
+  // Função para compartilhar o link (Usa a API nativa do celular/PC ou copia o link)
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Relatório DISC - ${colab.nm_completo}`,
+          text: `Confira o mapeamento de perfil de ${colab.nm_completo}`,
+          url: url,
+        });
+      } catch (error) {
+        console.log("Compartilhamento cancelado", error);
+      }
+    } else {
+      navigator.clipboard.writeText(url);
+      alert("Link do relatório copiado para a área de transferência!");
+    }
+  };
+
+  // Função para exportar/imprimir TODAS as abas
+  const handlePrint = () => {
+    const conteudo = document.getElementById("area-relatorio")?.innerHTML;
+    if (!conteudo) return;
+
+    const janela = window.open("", "", "width=1100,height=900");
+    if (!janela) return;
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Relatório DISC - ${colab.nm_completo}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+          <style>
+            @media print {
+              @page { margin: 15mm; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              
+              /* O SEGREDO: Força todas as abas a aparecerem na impressão, ignorando o "hidden" da tela */
+              .aba-container { 
+                display: block !important; 
+                margin-bottom: 40px; 
+                page-break-inside: avoid; 
+              }
+              .titulo-impressao { display: block !important; margin-bottom: 20px; }
+            }
+            .titulo-impressao { display: none; }
+          </style>
+        </head>
+        <body class="bg-white p-8 font-sans">
+          <div class="mb-10 pb-6 border-b border-slate-200 flex justify-between items-center">
+             <div>
+               <h1 class="text-2xl font-bold text-[#064384]">${colab.nm_completo}</h1>
+               <p class="text-slate-500 font-medium mt-1">Cargo: ${colab.CARGOS?.nm_titulo || "Não informado"} | Perfil Principal: <strong class="text-slate-800">${colab.sg_perfil_disc}</strong></p>
+             </div>
+             <div class="text-right text-xs text-slate-400 font-bold uppercase tracking-widest">
+               Relatório Psicométrico
+             </div>
+          </div>
+          
+          ${conteudo}
+          
+          <script>
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 800); // Tempo para o Tailwind carregar as cores
+          </script>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+  };
+
   // Atalhos para não repetir código
   const disc = colab.js_pontuacao_disc;
   const getIniciais = (nome: string) => nome.substring(0, 2).toUpperCase();
@@ -150,13 +224,19 @@ export default function RelatorioPsicometricoPage() {
 
         {/* Ações */}
         <div className="flex gap-2">
-          <button className="flex items-center gap-2 border border-slate-200 bg-white px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors">
+          <button
+            className="flex items-center gap-2 border border-slate-200 bg-white px-4 py-2 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            onClick={handleShare}
+          >
             <span className="material-symbols-outlined text-[16px] text-slate-400">
               share
             </span>{" "}
             Compartilhar
           </button>
-          <button className="flex items-center gap-2 bg-[#FF8323] px-4 py-2 rounded-lg text-xs font-bold text-white hover:bg-[#e5761f] transition-colors shadow-sm">
+          <button
+            className="flex items-center gap-2 bg-[#FF8323] px-4 py-2 rounded-lg text-xs font-bold text-white hover:bg-[#e5761f] transition-colors shadow-sm"
+            onClick={handlePrint}
+          >
             <span className="material-symbols-outlined text-[18px]">
               download
             </span>{" "}
@@ -198,11 +278,16 @@ export default function RelatorioPsicometricoPage() {
         ))}
       </div>
 
-      <main className="flex-1 p-8 overflow-y-auto">
+      <main className="flex-1 p-8 overflow-y-auto" id="area-relatorio">
         {/* ================================== */}
-        {/* ABA 1: VISÃO GERAL (O Gráfico de Rosca) */}
+        {/* ABA 1: VISÃO GERAL */}
         {/* ================================== */}
-        {activeTab === "overview" && (
+        <div
+          className={`aba-container ${activeTab === "overview" ? "block" : "hidden"}`}
+        >
+          <h2 className="text-xl font-bold text-[#064384] titulo-impressao border-b border-slate-100 pb-2">
+            Visão Geral do Perfil
+          </h2>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-in fade-in duration-300">
             {/* CARD 1: Perfil Natural */}
             <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col">
@@ -254,7 +339,6 @@ export default function RelatorioPsicometricoPage() {
                         </span>
                       </div>
                     </div>
-                    {/* Linha Fina em Baixo */}
                     <div className="w-full h-[2px] bg-slate-100 rounded-full overflow-hidden">
                       <div
                         className={`h-full ${item.color} rounded-full transition-all duration-1000`}
@@ -316,12 +400,10 @@ export default function RelatorioPsicometricoPage() {
                       {item.letter}
                     </span>
                     <div className="flex-1 relative h-6 rounded flex items-center">
-                      {/* Marcador Alvo (Cargo) - Rosa Claro Grosso */}
                       <div
                         className="absolute h-[24px] rounded-r-md bg-red-200 border-l-4 border-[#EF4444] z-0 transition-all duration-1000"
                         style={{ width: `${item.target}%`, left: 0 }}
                       ></div>
-                      {/* Marcador Atual (Perfil) - Azul Escuro */}
                       <div
                         className="absolute h-[12px] bg-[#064384] rounded-md z-10 transition-all duration-1000 shadow-sm"
                         style={{ width: `${item.val}%`, left: 0 }}
@@ -354,12 +436,17 @@ export default function RelatorioPsicometricoPage() {
               </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* ================================== */}
         {/* ABA 2: ANÁLISE QUALITATIVA */}
         {/* ================================== */}
-        {activeTab === "qualitative" && (
+        <div
+          className={`aba-container ${activeTab === "qualitative" ? "block" : "hidden"}`}
+        >
+          <h2 className="text-xl font-bold text-[#064384] titulo-impressao border-b border-slate-100 pb-2">
+            Análise Qualitativa
+          </h2>
           <div className="space-y-8 animate-in fade-in duration-300">
             {/* CARDS */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -508,16 +595,18 @@ export default function RelatorioPsicometricoPage() {
               </div>
             </div>
           </div>
-        )}
+        </div>
 
         {/* ================================== */}
         {/* ABA 3: MATRIZ DE COMPETÊNCIAS */}
         {/* ================================== */}
-        {activeTab === "competencies" && (
+        <div
+          className={`aba-container ${activeTab === "competencies" ? "block" : "hidden"}`}
+        >
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-bold text-[#064384]">
+                <h2 className="text-xl font-bold text-[#064384] titulo-impressao border-b border-slate-100 pb-2 print:pb-0 print:border-none">
                   Matriz de Competências
                 </h2>
               </div>
@@ -586,7 +675,6 @@ export default function RelatorioPsicometricoPage() {
                   </div>
 
                   <div className="p-6 space-y-6">
-                    {/* Renderiza as competências baseadas no JSON */}
                     {disc.competencias
                       ?.filter((c) => c.letra === perfil.key)
                       .map((comp) => (
@@ -616,12 +704,14 @@ export default function RelatorioPsicometricoPage() {
               ))}
             </div>
           </div>
-        )}
+        </div>
 
         {/* ================================== */}
         {/* ABA 4: PLANO DE ADAPTAÇÃO */}
         {/* ================================== */}
-        {activeTab === "pdi" && (
+        <div
+          className={`aba-container ${activeTab === "pdi" ? "block" : "hidden"}`}
+        >
           <div className="space-y-10 animate-in fade-in duration-300">
             <section>
               <div className="flex items-center justify-between mb-6">
@@ -722,10 +812,10 @@ export default function RelatorioPsicometricoPage() {
                     onChange={(e) =>
                       setColab({ ...colab, ds_observacoes: e.target.value })
                     }
-                    className="w-full min-h-[160px] p-6 text-slate-700 text-sm font-medium leading-relaxed border border-slate-200 rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-orange-500/20 focus:border-[#FF8323] outline-none resize-none"
+                    className="w-full min-h-[160px] p-6 text-slate-700 text-sm font-medium leading-relaxed border border-slate-200 rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-orange-500/20 focus:border-[#FF8323] outline-none resize-none print:border-none print:bg-white print:p-0"
                     placeholder="Anote o plano de desenvolvimento baseado no resultado deste candidato..."
                   />
-                  <div className="mt-6 flex justify-end">
+                  <div className="mt-6 flex justify-end print:hidden">
                     <button
                       onClick={async () => {
                         const { error } = await supabase
@@ -746,7 +836,7 @@ export default function RelatorioPsicometricoPage() {
               </div>
             </section>
           </div>
-        )}
+        </div>
       </main>
     </div>
   );
