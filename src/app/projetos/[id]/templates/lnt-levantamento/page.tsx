@@ -25,6 +25,7 @@ const formInicial = {
   resultados: "",
   recursosDidaticos: "",
   infraestrutura: "",
+  participantesNomes: "",
 };
 
 export default function LNTPage() {
@@ -80,6 +81,7 @@ export default function LNTPage() {
       resultados: t.ds_resultados_esperados || "",
       recursosDidaticos: t.ds_recursos_didaticos || "",
       infraestrutura: t.ds_infraestrutura || "",
+      participantesNomes: t.ds_lista_participantes || "",
     });
   };
 
@@ -118,6 +120,7 @@ export default function LNTPage() {
       ds_resultados_esperados: form.resultados,
       ds_recursos_didaticos: form.recursosDidaticos,
       ds_infraestrutura: form.infraestrutura,
+      ds_lista_participantes: form.participantesNomes,
     };
 
     try {
@@ -467,6 +470,21 @@ export default function LNTPage() {
                       }
                       className="w-full mt-1 p-3 bg-slate-50 border rounded-xl outline-none"
                       placeholder="Ex: 15"
+                    />
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <label className="text-xs font-bold text-slate-700">
+                      Lista de Participantes (Nomes)
+                    </label>
+                    <textarea
+                      value={form.participantesNomes}
+                      onChange={(e) =>
+                        setForm({ ...form, participantesNomes: e.target.value })
+                      }
+                      rows={2}
+                      className="w-full mt-1 p-3 bg-slate-50 border rounded-xl outline-none"
+                      placeholder="Ex: João Silva, Maria Souza..."
                     />
                   </div>
 
