@@ -324,13 +324,58 @@ export default function DiagnosticoInicialPage() {
         setRegistroExiste(true);
       }
       alert("Diagnóstico Estratégico salvo com sucesso!");
-      router.back();
     } catch (error) {
       console.error("Erro ao salvar:", error);
       alert("Ocorreu um erro ao salvar o diagnóstico.");
     } finally {
       setSaving(false);
     }
+  };
+
+  // --- FUNÇÃO DE IMPRESSÃO / PDF ---
+  const handlePrint = () => {
+    const conteudo = document.getElementById("area-impressao")?.innerHTML;
+    if (!conteudo) return;
+
+    const janela = window.open("", "", "width=1200,height=900");
+    if (!janela) return;
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Diagnóstico RH - ${empresaNome}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+          <style>
+            @media print {
+              @page { margin: 10mm; size: A4; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .break-inside-avoid { page-break-inside: avoid; }
+              .print-hidden { display: none !important; }
+            }
+          </style>
+        </head>
+        <body class="bg-white text-slate-800 font-sans p-8">
+          <div class="border-b-2 border-[#064384] pb-4 mb-8 flex justify-between items-end">
+            <div>
+              <h1 class="text-2xl font-black text-[#064384] uppercase tracking-widest">Consultoria RH</h1>
+              <p class="text-slate-500 font-medium">Diagnóstico de Maturidade em Gestão de Pessoas 360º</p>
+              <p class="text-slate-800 font-bold mt-2">Cliente: ${empresaNome}</p>
+            </div>
+            <div class="text-right text-sm font-bold text-slate-400">
+              ${new Date().toLocaleDateString("pt-BR")}
+            </div>
+          </div>
+
+          ${conteudo}
+
+          <script>
+            setTimeout(() => { window.print(); window.close(); }, 800);
+          </script>
+        </body>
+      </html>
+    `);
+    janela.document.close();
   };
 
   if (loading) {
@@ -348,21 +393,55 @@ export default function DiagnosticoInicialPage() {
 
   return (
     <div className="bg-[#F1F5F9] min-h-screen font-sans flex flex-col pb-20">
+      {/* HEADER DINÂMICO COM BOTÕES */}
       <header className="bg-white/95 backdrop-blur-sm pt-8 pb-6 px-8 flex justify-between items-end border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0">
         <div>
-          <h2 className="text-3xl font-extrabold text-primary tracking-tight">
-            Diagnostico 360°
-          </h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
-            Diagnóstico estratégico para identificar pontos de melhoria e
-            oportunidades de crescimento na gestão de pessoas da sua empresa.
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="text-slate-400 hover:text-[#064384] mb-1"
+            >
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+            <h2 className="text-3xl font-extrabold text-[#064384] tracking-tight">
+              Diagnóstico 360°
+            </h2>
+          </div>
+          <p className="text-sm text-slate-500 font-medium mt-1 ml-10">
+            Identifique pontos de melhoria e oportunidades de crescimento na
+            gestão de pessoas.
           </p>
+        </div>
+
+        {/* BOTÕES: PDF e SALVAR */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handlePrint}
+            className="flex items-center gap-2 px-5 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none"
+          >
+            <span className="material-symbols-outlined text-[18px]">print</span>
+            Relatório PDF
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-6 py-3 bg-[#FF8323] hover:bg-orange-600 text-white rounded-xl text-sm font-bold shadow-md transition-all focus:outline-none"
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              {saving ? "sync" : "save"}
+            </span>
+            Salvar Diagnóstico
+          </button>
         </div>
       </header>
 
-      <main className="max-w-[1000px] mx-auto w-full px-6 py-8 space-y-6">
+      {/* ÁREA DE CONTEÚDO (COM ID PARA IMPRESSÃO) */}
+      <main
+        id="area-impressao"
+        className="max-w-[1000px] mx-auto w-full px-6 py-8 space-y-6"
+      >
         {/* DASHBOARD DE RESULTADOS (Tempo Real) */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 break-inside-avoid">
           <div className="md:col-span-4 flex justify-between items-center border-b border-slate-100 pb-4">
             <h2 className="font-black text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2">
               <span className="material-symbols-outlined text-[#FF8323]">
@@ -423,7 +502,7 @@ export default function DiagnosticoInicialPage() {
           {BLOCOS_QUANTITATIVOS.map((bloco) => (
             <section
               key={bloco.id}
-              className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
+              className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden break-inside-avoid"
             >
               <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">
@@ -456,7 +535,7 @@ export default function DiagnosticoInicialPage() {
                               })
                             }
                             title={item.label}
-                            className={`size-10 rounded-lg text-sm font-black transition-all flex items-center justify-center border-2
+                            className={`size-10 rounded-lg text-sm font-black transition-all flex items-center justify-center border-2 print-hidden
                               ${
                                 val === item.valor
                                   ? "bg-[#064384] border-[#064384] text-white shadow-md scale-110"
@@ -467,6 +546,11 @@ export default function DiagnosticoInicialPage() {
                             {item.valor}
                           </button>
                         ))}
+
+                        {/* Versão somente-leitura para o PDF (para não mostrar botões) */}
+                        <div className="hidden print-hidden-invert text-sm font-bold text-[#064384]">
+                          {val ? `Nota: ${val}` : "Não avaliado"}
+                        </div>
                       </div>
                     </div>
                   );
@@ -477,7 +561,7 @@ export default function DiagnosticoInicialPage() {
         </div>
 
         {/* FORMULÁRIO QUALITATIVO (BLOCO 8) */}
-        <section className="bg-[#064384] rounded-2xl shadow-xl border border-blue-900 overflow-hidden mt-12">
+        <section className="bg-[#064384] rounded-2xl shadow-xl border border-blue-900 overflow-hidden mt-12 break-inside-avoid">
           <div className="bg-blue-900/50 px-6 py-4 border-b border-white/10 flex items-center gap-3">
             <span className="material-symbols-outlined text-[#FF8323]">
               record_voice_over
@@ -494,6 +578,7 @@ export default function DiagnosticoInicialPage() {
                   <label className="text-xs font-bold text-blue-200">
                     {pergunta}
                   </label>
+                  {/* Para o PDF, escondemos o textarea e mostramos só o texto */}
                   <textarea
                     rows={3}
                     placeholder="Anotações da entrevista..."
@@ -504,8 +589,13 @@ export default function DiagnosticoInicialPage() {
                         [key]: e.target.value,
                       })
                     }
-                    className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-blue-300/50 rounded-xl focus:ring-2 focus:ring-[#FF8323] outline-none transition-all text-sm resize-none"
+                    className="print-hidden w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-blue-300/50 rounded-xl focus:ring-2 focus:ring-[#FF8323] outline-none transition-all text-sm resize-none"
                   ></textarea>
+
+                  {/* Div visível só na impressão */}
+                  <div className="hidden print-hidden-invert text-white text-sm italic border-b border-white/20 pb-2">
+                    {respostasQuali[key] || "Nenhuma anotação."}
+                  </div>
                 </div>
               );
             })}

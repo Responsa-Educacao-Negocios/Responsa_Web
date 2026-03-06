@@ -164,9 +164,50 @@ export default function FichaEmpresaPage() {
     }
   };
 
-  // const handleNovoRegistro = () => {
-  //   alert("Função de Novo Registro da Timeline em desenvolvimento!");
-  // };
+  // --- FUNÇÃO DE IMPRESSÃO / PDF ---
+  const handlePrint = () => {
+    const conteudo = document.getElementById("area-impressao")?.innerHTML;
+    if (!conteudo) return;
+
+    const janela = window.open("", "", "width=1200,height=900");
+    if (!janela) return;
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Ficha Cadastral - ${empresaData?.nm_fantasia}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+          <style>
+            @media print {
+              @page { margin: 10mm; size: A4; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .break-inside-avoid { page-break-inside: avoid; }
+              .print-hidden { display: none !important; }
+            }
+          </style>
+        </head>
+        <body class="bg-white text-slate-800 font-sans p-8">
+          <div class="border-b-2 border-[#064384] pb-4 mb-8 flex justify-between items-end">
+            <div>
+              <h1 class="text-2xl font-black text-[#064384] uppercase tracking-widest">Ficha da Empresa</h1>
+              <p class="text-slate-500 font-medium">Relatório Oficial Gerado pelo Sistema</p>
+            </div>
+            <div class="text-right text-sm font-bold text-slate-400">
+              ${new Date().toLocaleDateString("pt-BR")}
+            </div>
+          </div>
+
+          ${conteudo}
+
+          <script>
+            setTimeout(() => { window.print(); window.close(); }, 800);
+          </script>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+  };
 
   if (loading || !empresaData) {
     return (
@@ -189,7 +230,7 @@ export default function FichaEmpresaPage() {
       <div className="flex-1 overflow-y-auto relative bg-[#F5F7FA] h-full font-display">
         {/* MODAL: EDITAR EMPRESA (COM ABAS) */}
         {isModalOpen && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 print-hidden">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
                 <h3 className="text-lg font-bold text-primary flex items-center gap-2">
@@ -550,9 +591,19 @@ export default function FichaEmpresaPage() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
+            {/* BOTÃO DE IMPRESSÃO */}
+            <button
+              onClick={handlePrint}
+              className="print-hidden flex items-center gap-2 px-5 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                print
+              </span>
+              PDF
+            </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-3 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm focus:outline-none hover:text-primary hover:border-primary/30"
+              className="print-hidden flex items-center gap-2 px-5 py-3 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm focus:outline-none hover:text-primary hover:border-primary/30"
             >
               <span className="material-symbols-outlined text-[18px]">
                 edit
@@ -562,10 +613,13 @@ export default function FichaEmpresaPage() {
           </div>
         </header>
 
-        {/* CONTEÚDO PRINCIPAL */}
-        <div className="p-8 space-y-6 max-w-[1400px] mx-auto">
+        {/* CONTEÚDO PRINCIPAL (COM ID PARA O PDF) */}
+        <div
+          id="area-impressao"
+          className="p-8 space-y-6 max-w-[1400px] mx-auto"
+        >
           {/* CARD PRINCIPAL (RESUMO) */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 break-inside-avoid">
             <div className="flex flex-col md:flex-row gap-6 items-center md:items-start">
               <div className="h-24 w-24 rounded-xl bg-slate-50 flex items-center justify-center flex-shrink-0 border border-slate-200 text-slate-400 shadow-inner">
                 <span className="material-symbols-outlined text-5xl">
@@ -618,7 +672,7 @@ export default function FichaEmpresaPage() {
           {/* 3 CARDS INFERIORES */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Card: Dados Cadastrais */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col break-inside-avoid">
               <div className="flex items-center gap-2 mb-5 pb-4 border-b border-slate-100">
                 <span className="material-symbols-outlined text-primary text-[22px]">
                   badge
@@ -674,7 +728,7 @@ export default function FichaEmpresaPage() {
             </div>
 
             {/* Card: Contrato e Faturamento */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col break-inside-avoid">
               <div className="flex items-center gap-2 mb-5 pb-4 border-b border-slate-100">
                 <span className="material-symbols-outlined text-accent text-[22px]">
                   description
@@ -726,7 +780,7 @@ export default function FichaEmpresaPage() {
             </div>
 
             {/* Card: Diagnóstico */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col break-inside-avoid">
               <div className="flex items-center gap-2 mb-5 pb-4 border-b border-slate-100">
                 <span className="material-symbols-outlined text-blue-500 text-[22px]">
                   monitoring
@@ -781,7 +835,7 @@ export default function FichaEmpresaPage() {
           </div>
 
           {/* TIMELINE DE INTERAÇÕES */}
-          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 mt-6">
+          <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-200 mt-6 break-inside-avoid">
             <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
               <div className="flex items-center gap-3">
                 <div className="h-10 w-10 bg-orange-50 text-accent rounded-xl flex items-center justify-center">
@@ -798,15 +852,6 @@ export default function FichaEmpresaPage() {
                   </p>
                 </div>
               </div>
-              {/* <button
-                onClick={handleNovoRegistro}
-                className="flex items-center gap-2 text-sm text-primary bg-primary/5 hover:bg-primary/10 px-4 py-2 rounded-lg font-bold transition-colors focus:outline-none"
-              >
-                <span className="material-symbols-outlined text-[18px]">
-                  add
-                </span>
-                Novo Registro
-              </button> */}
             </div>
 
             <div className="relative border-l-2 border-slate-100 ml-4 space-y-10 py-2">

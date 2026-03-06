@@ -46,7 +46,7 @@ export default function AnaliseDiscEquipePage() {
             C: a.nr_conformidade || 0,
           };
 
-          // Encontra a letra com a maior pontuação (ex: se D for 80, ele ganha)
+          // Encontra a letra com a maior pontuação
           const perfilPrincipal = Object.keys(scores).reduce((x, y) =>
             scores[x as keyof typeof scores] > scores[y as keyof typeof scores]
               ? x
@@ -82,7 +82,7 @@ export default function AnaliseDiscEquipePage() {
           total: totalTestes,
           distribuicao: dist,
           perfilEquipe,
-          aderenciaMedia: 85, // Mock temporário para aderência
+          aderenciaMedia: 85, // Mock temporário
           maturidade,
         });
       } catch (error) {
@@ -94,6 +94,51 @@ export default function AnaliseDiscEquipePage() {
 
     if (params.id) buscarDadosDaEquipe();
   }, [params.id]);
+
+  // --- FUNÇÃO DE IMPRESSÃO / PDF ---
+  const handlePrint = () => {
+    const conteudo = document.getElementById("area-impressao")?.innerHTML;
+    if (!conteudo) return;
+
+    const janela = window.open("", "", "width=1200,height=900");
+    if (!janela) return;
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Análise DISC da Equipe</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+          <style>
+            @media print {
+              @page { margin: 10mm; size: A4 landscape; } /* Paisagem fica melhor para os gráficos juntos */
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .break-inside-avoid { page-break-inside: avoid; }
+              .print-hidden { display: none !important; }
+            }
+          </style>
+        </head>
+        <body class="bg-white text-slate-800 font-sans p-8">
+          <div class="border-b-2 border-[#064384] pb-4 mb-8 flex justify-between items-end">
+            <div>
+              <h1 class="text-2xl font-black text-[#064384] uppercase tracking-widest">Consultoria RH</h1>
+              <p class="text-slate-500 font-medium">Análise DISC - Visão Geral da Equipe</p>
+            </div>
+            <div class="text-right text-sm font-bold text-slate-400">
+              ${new Date().toLocaleDateString("pt-BR")}
+            </div>
+          </div>
+
+          ${conteudo}
+
+          <script>
+            setTimeout(() => { window.print(); window.close(); }, 800);
+          </script>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+  };
 
   if (loading) {
     return (
@@ -138,11 +183,12 @@ export default function AnaliseDiscEquipePage() {
       type: "bar",
       toolbar: { show: false },
       fontFamily: "Montserrat, sans-serif",
+      animations: { enabled: false }, // Desliga animação na impressão
     },
     plotOptions: {
       bar: { horizontal: true, borderRadius: 4, barHeight: "60%" },
     },
-    colors: ["#064384"], // Azul Navy da sua identidade
+    colors: ["#064384"],
     dataLabels: { enabled: false },
     xaxis: {
       categories: [
@@ -187,23 +233,44 @@ export default function AnaliseDiscEquipePage() {
       {/* Header Superior */}
       <header className="bg-white/95 backdrop-blur-sm pt-8 pb-6 px-8 flex justify-between items-end border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0">
         <div>
-          <h2 className="text-3xl font-extrabold text-primary tracking-tight">
-            Análise DISC da Equipe
-          </h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="text-slate-400 hover:text-[#064384] mb-1"
+            >
+              <span className="material-symbols-outlined">arrow_back</span>
+            </button>
+            <h2 className="text-3xl font-extrabold text-primary tracking-tight">
+              Análise DISC da Equipe
+            </h2>
+          </div>
+          <p className="text-sm text-slate-500 font-medium mt-1 ml-10">
             Visão consolidada do perfil comportamental e maturidade do time.
           </p>
         </div>
+
+        {/* BOTÃO DE PDF ADICIONADO AQUI */}
+        <button
+          onClick={handlePrint}
+          className="flex items-center gap-2 px-5 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none print-hidden"
+        >
+          <span className="material-symbols-outlined text-[18px]">print</span>
+          Relatório PDF
+        </button>
       </header>
 
-      <main className="max-w-[1400px] mx-auto w-full px-6 py-8 flex-1">
-        {/* Título da Página */}
-        <div className="mb-8 flex items-end justify-between">
+      {/* ÁREA DE IMPRESSÃO COMEÇA AQUI */}
+      <main
+        id="area-impressao"
+        className="max-w-[1400px] mx-auto w-full px-6 py-8 flex-1"
+      >
+        {/* Título interno que só o PDF não vai esconder (No site esconde pq já tem o header) */}
+        <div className="mb-8 flex items-end justify-between break-inside-avoid">
           <div>
-            <h1 className="text-3xl font-black text-[#064384] tracking-tight">
+            <h1 className="text-3xl font-black text-[#064384] tracking-tight print:hidden">
               Análise DISC da Equipe
             </h1>
-            <p className="text-slate-500 font-medium mt-1">
+            <p className="text-slate-500 font-medium mt-1 print:hidden">
               Visão consolidada do perfil comportamental e maturidade do time.
             </p>
           </div>
@@ -218,11 +285,11 @@ export default function AnaliseDiscEquipePage() {
         </div>
 
         {/* ================================================= */}
-        {/* GRID DOS GRÁFICOS (Baseado na sua imagem)         */}
+        {/* GRID DOS GRÁFICOS (Adicionado break-inside-avoid) */}
         {/* ================================================= */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 1. DISTRIBUIÇÃO POR PERFIL (DONUT) */}
-          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col">
+          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col break-inside-avoid">
             <h3 className="font-bold text-[#064384] text-sm mb-8">
               Distribuição por Perfil
             </h3>
@@ -282,7 +349,7 @@ export default function AnaliseDiscEquipePage() {
           </div>
 
           {/* 2. MATURIDADE COMPORTAMENTAL (BARRAS) */}
-          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col">
+          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col break-inside-avoid">
             <h3 className="font-bold text-[#064384] text-sm mb-4">
               Maturidade Comportamental
             </h3>
@@ -297,7 +364,7 @@ export default function AnaliseDiscEquipePage() {
           </div>
 
           {/* 3. ANÁLISE DE EQUILÍBRIO (BARRAS DE PROGRESSO) */}
-          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col">
+          <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col break-inside-avoid">
             <h3 className="font-bold text-[#064384] text-sm mb-8">
               Análise de Equilíbrio
             </h3>
@@ -309,7 +376,6 @@ export default function AnaliseDiscEquipePage() {
                   <span className="text-sm font-medium text-slate-700">
                     Risco de Conflito
                   </span>
-                  {/* A cor da palavra e da barra mudam juntas */}
                   <span className="text-xs font-bold text-orange-500">
                     Médio
                   </span>
@@ -338,7 +404,7 @@ export default function AnaliseDiscEquipePage() {
                 </div>
               </div>
 
-              {/* Maturidade Geral (Usando a Aderência Média que calculamos) */}
+              {/* Maturidade Geral */}
               <div className="space-y-3">
                 <div className="flex justify-between items-end">
                   <span className="text-sm font-medium text-slate-700">

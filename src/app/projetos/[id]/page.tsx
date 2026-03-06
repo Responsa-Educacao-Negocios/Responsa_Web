@@ -159,7 +159,54 @@ export default function ConsultorProjetoDashboard() {
     buscarDadosDoProjeto();
   }, [params.id, router]);
 
-  // Configurações dos Gráficos (ApexCharts) com os dados gerados
+  // Função para exportar PDF
+  const handlePrint = () => {
+    const conteudo = document.getElementById("area-impressao")?.innerHTML;
+    if (!conteudo) return;
+
+    const janela = window.open("", "", "width=1200,height=900");
+    if (!janela) return;
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Relatório Dashboard</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+          <style>
+            @media print {
+              @page { margin: 10mm; size: A4; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .break-inside-avoid { page-break-inside: avoid; }
+              /* Esconde botões na hora da impressão */
+              .print-hidden { display: none !important; }
+            }
+          </style>
+        </head>
+        <body class="bg-white text-slate-800 font-sans p-8">
+          <div class="border-b-2 border-[#064384] pb-4 mb-8 flex justify-between items-end">
+            <div>
+              <h1 class="text-2xl font-black text-[#064384] uppercase tracking-widest">Consultoria RH</h1>
+              <p class="text-slate-500 font-medium">Relatório Oficial Gerado pelo Sistema - Visão Geral do Projeto</p>
+              <p class="text-slate-800 font-bold mt-2">Cliente: ${projeto?.EMPRESAS?.nm_fantasia || ""}</p>
+            </div>
+            <div class="text-right text-sm font-bold text-slate-400">
+              ${new Date().toLocaleDateString("pt-BR")}
+            </div>
+          </div>
+
+          ${conteudo}
+
+          <script>
+            setTimeout(() => { window.print(); window.close(); }, 800);
+          </script>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+  };
+
+  // Configurações dos Gráficos (ApexCharts)
   const radarOptions: ApexCharts.ApexOptions = {
     chart: {
       type: "radar",
@@ -220,31 +267,6 @@ export default function ConsultorProjetoDashboard() {
     },
   };
 
-  const barOptions: ApexCharts.ApexOptions = {
-    chart: {
-      type: "bar",
-      toolbar: { show: false },
-      fontFamily: "Montserrat, sans-serif",
-    },
-    colors: ["#064384"],
-    plotOptions: {
-      bar: { borderRadius: 4, columnWidth: "60%", distributed: true },
-    },
-    dataLabels: { enabled: false },
-    xaxis: {
-      categories: ["Vendas", "Admin", "Operações", "Marketing"],
-      axisBorder: { show: false },
-      axisTicks: { show: false },
-    },
-    yaxis: { min: 0, max: 100 },
-    grid: {
-      borderColor: "#E5E7EB",
-      strokeDashArray: 4,
-      yaxis: { lines: { show: true } },
-    },
-    legend: { show: false },
-  };
-
   if (loading || !projeto) {
     return (
       <div className="min-h-screen bg-background-light flex items-center justify-center flex-col gap-4 text-primary">
@@ -257,36 +279,6 @@ export default function ConsultorProjetoDashboard() {
   }
 
   // Helpers Visuais
-  const siglaEmpresa =
-    projeto.EMPRESAS?.nm_fantasia?.substring(0, 2).toUpperCase() || "GP";
-
-  const getBadgeStatus = () => {
-    if (projeto.tp_status === "ATIVO")
-      return {
-        cor: "bg-green-500",
-        texto: "Em Andamento",
-        bg: "bg-green-50 text-green-700 border-green-200",
-      };
-    if (projeto.tp_status === "CONCLUIDO")
-      return {
-        cor: "bg-blue-500",
-        texto: "Finalizado",
-        bg: "bg-blue-50 text-blue-700 border-blue-200",
-      };
-    if (projeto.tp_status === "PAUSADO")
-      return {
-        cor: "bg-gray-500",
-        texto: "Pausado",
-        bg: "bg-gray-50 text-gray-700 border-gray-200",
-      };
-    return {
-      cor: "bg-orange-500",
-      texto: "Em Prospecção",
-      bg: "bg-orange-50 text-orange-700 border-orange-200",
-    };
-  };
-
-  const statusInfo = getBadgeStatus();
   const getMaturidadeTexto = (nota: number) =>
     nota > 70 ? "Alta" : nota > 40 ? "Estruturando" : "Baixa";
   const getClimaTexto = (nota: number) =>
@@ -296,9 +288,7 @@ export default function ConsultorProjetoDashboard() {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased">
-      {/* ÁREA PRINCIPAL DA DASHBOARD */}
       <main className="flex-1 overflow-y-auto relative bg-[#F5F7FA]">
-        {/* CABEÇALHO (Atualizado para o design maior) */}
         {/* CABEÇALHO */}
         <header className="bg-white/95 backdrop-blur-sm px-8 py-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-30">
           <div className="flex flex-col gap-2">
@@ -315,38 +305,47 @@ export default function ConsultorProjetoDashboard() {
 
             <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
               <span>Visão integrada de Gestão de Pessoas</span>
-              <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-              {/* <span className="flex items-center gap-1.5">
-                Índice Geral:
-                <span className="px-2 py-0.5 rounded-md bg-orange-50 text-accent font-bold border border-orange-100 shadow-sm">
-                  {indiceGeral}/100
-                </span>
-              </span> */}
             </div>
           </div>
 
-          {/* Etiqueta da Empresa (Sem clique, sem setinha) */}
-          <div className="inline-flex items-center rounded-xl border border-slate-200 shadow-sm px-5 py-3 bg-slate-50/50 max-w-sm shrink-0">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary mr-3 shadow-inner">
+          <div className="flex items-center gap-4">
+            {/* BOTÃO DE IMPRIMIR PDF */}
+            <button
+              onClick={handlePrint}
+              className="print-hidden flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold transition-colors border border-slate-200"
+            >
               <span className="material-symbols-outlined text-[18px]">
-                domain
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-1">
-                Cliente Atual
-              </span>
-              <span className="truncate text-base font-bold text-slate-800 leading-none">
-                {projeto.EMPRESAS?.nm_fantasia}
-              </span>
+                print
+              </span>{" "}
+              PDF
+            </button>
+
+            {/* Etiqueta da Empresa */}
+            <div className="inline-flex items-center rounded-xl border border-slate-200 shadow-sm px-5 py-3 bg-slate-50/50 max-w-sm shrink-0">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary mr-3 shadow-inner">
+                <span className="material-symbols-outlined text-[18px]">
+                  domain
+                </span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-1">
+                  Cliente Atual
+                </span>
+                <span className="truncate text-base font-bold text-slate-800 leading-none">
+                  {projeto.EMPRESAS?.nm_fantasia}
+                </span>
+              </div>
             </div>
           </div>
         </header>
 
-        {/* CONTEÚDO GRÁFICOS E CARDS */}
-        <div className="p-8 space-y-6 max-w-[1400px] mx-auto">
+        {/* CONTEÚDO GRÁFICOS E CARDS (Esta DIV ganha o id="area-impressao") */}
+        <div
+          id="area-impressao"
+          className="p-8 space-y-6 max-w-[1400px] mx-auto"
+        >
           {/* 4 CARDS DE INDICADORES */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 break-inside-avoid">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-4">
                 <span className="material-symbols-outlined text-slate-400">
@@ -429,7 +428,7 @@ export default function ConsultorProjetoDashboard() {
           </div>
 
           {/* LINHA DE GRÁFICOS */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 break-inside-avoid">
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
               <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-accent text-[20px]">
@@ -492,7 +491,8 @@ export default function ConsultorProjetoDashboard() {
           </div>
 
           {/* RODAPÉ: ALERTAS E PRÓXIMAS AÇÕES */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 break-inside-avoid">
+            {/* ALERTAS */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
               <h3 className="font-bold text-primary mb-5 flex items-center gap-2">
                 <span className="material-symbols-outlined text-accent">
@@ -525,6 +525,7 @@ export default function ConsultorProjetoDashboard() {
               </div>
             </div>
 
+            {/* PRÓXIMAS AÇÕES */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
               <h3 className="font-bold text-primary mb-5 flex items-center gap-2">
                 <span className="material-symbols-outlined text-green-500">
@@ -543,7 +544,12 @@ export default function ConsultorProjetoDashboard() {
                     <span className="text-slate-600 text-sm font-medium">
                       Aplicar pesquisa de clima
                     </span>
-                    <button className="ml-auto text-primary text-xs font-bold hover:text-accent hover:underline focus:outline-none uppercase tracking-wide">
+                    <button
+                      onClick={() =>
+                        router.push(`/projetos/${params.id}/clima`)
+                      }
+                      className="ml-auto text-primary text-xs font-bold hover:text-accent hover:underline focus:outline-none uppercase tracking-wide print-hidden"
+                    >
                       Iniciar
                     </button>
                   </div>
@@ -558,7 +564,10 @@ export default function ConsultorProjetoDashboard() {
                   <span className="text-slate-600 text-sm font-medium">
                     Mapear novos colaboradores (DISC)
                   </span>
-                  <button className="ml-auto text-primary text-xs font-bold hover:text-accent hover:underline focus:outline-none uppercase tracking-wide">
+                  <button
+                    onClick={() => router.push(`/projetos/${params.id}/equipe`)}
+                    className="ml-auto text-primary text-xs font-bold hover:text-accent hover:underline focus:outline-none uppercase tracking-wide print-hidden"
+                  >
                     Abrir
                   </button>
                 </div>

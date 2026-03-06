@@ -121,27 +121,32 @@ export default function RelatorioPsicometricoPage() {
           <style>
             @media print {
               @page { margin: 15mm; }
+              /* O SEGREDO 1: Quebra a herança do flex h-screen do site original que causava a folha em branco */
+              html, body { height: auto !important; overflow: visible !important; display: block !important; }
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               
-              /* O SEGREDO: Força todas as abas a aparecerem na impressão, ignorando o "hidden" da tela */
+              /* O SEGREDO 2: Força todas as abas a aparecerem na impressão, ignorando o "hidden" da tela */
               .aba-container { 
                 display: block !important; 
                 margin-bottom: 40px; 
                 page-break-inside: avoid; 
               }
               .titulo-impressao { display: block !important; margin-bottom: 20px; }
+              .print-hidden { display: none !important; }
             }
             .titulo-impressao { display: none; }
           </style>
         </head>
         <body class="bg-white p-8 font-sans">
-          <div class="mb-10 pb-6 border-b border-slate-200 flex justify-between items-center">
+          
+          <div class="mb-10 pb-6 border-b-2 border-[#064384] flex justify-between items-center">
              <div>
-               <h1 class="text-2xl font-bold text-[#064384]">${colab.nm_completo}</h1>
-               <p class="text-slate-500 font-medium mt-1">Cargo: ${colab.CARGOS?.nm_titulo || "Não informado"} | Perfil Principal: <strong class="text-slate-800">${colab.sg_perfil_disc}</strong></p>
+               <h1 class="text-2xl font-black text-[#064384] uppercase tracking-widest">MAPEAMENTO DISC</h1>
+               <p class="text-slate-500 font-medium">Relatório Psicométrico Individual</p>
              </div>
-             <div class="text-right text-xs text-slate-400 font-bold uppercase tracking-widest">
-               Relatório Psicométrico
+             <div class="text-right">
+               <h2 class="text-lg font-bold text-slate-800">${colab.nm_completo}</h2>
+               <p class="text-sm font-medium text-slate-500">Cargo: ${colab.CARGOS?.nm_titulo || "Não informado"} | Perfil: <strong class="text-slate-800">${colab.sg_perfil_disc}</strong></p>
              </div>
           </div>
           
@@ -163,13 +168,13 @@ export default function RelatorioPsicometricoPage() {
   const disc = colab.js_pontuacao_disc;
   const getIniciais = (nome: string) => nome.substring(0, 2).toUpperCase();
 
-  // String matemática para montar o Donut Chart colorido (Igual ao Print)
+  // String matemática para montar o Donut Chart colorido
   const donutGradient = `conic-gradient(#EF4444 0% ${disc.D}%, #EAB308 ${disc.D}% ${disc.D + disc.I}%, #22C55E ${disc.D + disc.I}% ${disc.D + disc.I + disc.S}%, #3B82F6 ${disc.D + disc.I + disc.S}% 100%)`;
 
   return (
-    <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col">
+    <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col h-screen overflow-hidden">
       {/* Header Superior */}
-      <header className="flex items-center px-8 py-4 bg-white border-b border-slate-200 sticky top-0 z-50 shrink-0">
+      <header className="bg-white px-8 py-4 flex justify-between items-center border-b border-slate-200 sticky top-0 z-50 shrink-0">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-2 text-[#064384] hover:text-[#064384]/80 text-sm font-medium mr-6 transition-colors"
@@ -264,7 +269,7 @@ export default function RelatorioPsicometricoPage() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`py-4 text-[13px] font-bold flex items-center gap-2 border-b-2 transition-colors ${
+            className={`py-4 text-[13px] font-bold flex items-center gap-2 border-b-2 transition-colors outline-none ${
               activeTab === tab.id
                 ? "border-[#FF8323] text-[#FF8323]"
                 : "border-transparent text-slate-400 hover:text-[#064384]"
@@ -300,7 +305,6 @@ export default function RelatorioPsicometricoPage() {
                 </span>
               </div>
 
-              {/* O Gráfico de Rosca Colorido */}
               <div className="flex flex-col items-center justify-center py-6 mb-8 relative">
                 <div
                   className="size-56 rounded-full relative"
@@ -317,7 +321,6 @@ export default function RelatorioPsicometricoPage() {
                 </div>
               </div>
 
-              {/* Legendas Coloridas */}
               <div className="grid grid-cols-2 gap-x-12 gap-y-8 mt-auto">
                 {[
                   { label: "Dominância", val: disc.D, color: "bg-[#EF4444]" },
@@ -401,11 +404,11 @@ export default function RelatorioPsicometricoPage() {
                     </span>
                     <div className="flex-1 relative h-6 rounded flex items-center">
                       <div
-                        className="absolute h-[24px] rounded-r-md bg-red-200 border-l-4 border-[#EF4444] z-0 transition-all duration-1000"
+                        className="absolute h-[24px] rounded-r-md bg-red-200 border-l-4 border-[#EF4444] z-0"
                         style={{ width: `${item.target}%`, left: 0 }}
                       ></div>
                       <div
-                        className="absolute h-[12px] bg-[#064384] rounded-md z-10 transition-all duration-1000 shadow-sm"
+                        className="absolute h-[12px] bg-[#064384] rounded-md z-10 shadow-sm"
                         style={{ width: `${item.val}%`, left: 0 }}
                       ></div>
                     </div>
@@ -693,7 +696,7 @@ export default function RelatorioPsicometricoPage() {
                               style={{ width: `${comp.valor}%` }}
                             ></div>
                             <div
-                              className="absolute h-[18px] w-[3px] bg-red-500 rounded-sm z-10 transition-all duration-1000"
+                              className="absolute h-[18px] w-[3px] bg-red-500 rounded-sm z-10"
                               style={{ left: `${comp.alvo}%`, top: "-5px" }}
                             ></div>
                           </div>
@@ -815,7 +818,7 @@ export default function RelatorioPsicometricoPage() {
                     className="w-full min-h-[160px] p-6 text-slate-700 text-sm font-medium leading-relaxed border border-slate-200 rounded-lg bg-slate-50/50 focus:ring-2 focus:ring-orange-500/20 focus:border-[#FF8323] outline-none resize-none print:border-none print:bg-white print:p-0"
                     placeholder="Anote o plano de desenvolvimento baseado no resultado deste candidato..."
                   />
-                  <div className="mt-6 flex justify-end print:hidden">
+                  <div className="mt-6 flex justify-end print-hidden">
                     <button
                       onClick={async () => {
                         const { error } = await supabase

@@ -11,7 +11,7 @@ const templatesList = [
     title: "Descrição de Cargos",
     desc: "Modelo padronizado para definir responsabilidades, requisitos e competências de cada cargo.",
     arquivo: "descricao-cargos.docx",
-    slug: "descricao-cargos", // <--- Adicionado para roteamento
+    slug: "descricao-cargos",
     color: "bg-blue-50 text-blue-600 border-blue-200",
   },
   {
@@ -28,7 +28,7 @@ const templatesList = [
     title: "Roteiro de Entrevista",
     desc: "Perguntas comportamentais e técnicas estruturadas por competência.",
     arquivo: "roteiro-entrevista.doc",
-    slug: "roteiro-entrevista", // <--- Adicionado para roteamento
+    slug: "roteiro-entrevista",
     color: "bg-orange-50 text-orange-600 border-orange-200",
   },
   {
@@ -43,8 +43,9 @@ const templatesList = [
     id: 5,
     category: "Remuneração",
     title: "Plano de Cargos e Salários",
-    desc: "Estrutura de faixas salariais, critérios de progressão e enquadramento.",
-    arquivo: "plano-cargos-salarios.pdf",
+    desc: "Estrutura de faixas salariais, progressão e enquadramento.",
+    arquivo: "cargos-salarios.pdf",
+    slug: "cargos-salarios",
     color: "bg-green-50 text-green-600 border-green-200",
   },
   {
@@ -61,7 +62,7 @@ const templatesList = [
     title: "LNT – Levantamento",
     desc: "Diagnóstico de gaps de competência e necessidades de treinamento.",
     arquivo: "lnt-levantamento.docx",
-    slug: "lnt-levantamento", // <--- Adicionado para roteamento
+    slug: "lnt-levantamento",
     color: "bg-yellow-50 text-yellow-600 border-yellow-200",
   },
   {
@@ -78,6 +79,7 @@ const templatesList = [
     title: "Plano de Ação 30/60/90",
     desc: "Plano de ações com responsáveis, prazos e indicadores.",
     arquivo: "plano-acao.xlsx",
+    slug: "plano-acao", // <--- Adicionado o slug aqui!
     color: "bg-slate-50 text-slate-600 border-slate-200",
   },
   {
@@ -86,7 +88,7 @@ const templatesList = [
     title: "Regulamento Interno",
     desc: "Documento completo com regras e procedimentos internos da empresa.",
     arquivo: "regulamento-interno.docx",
-    slug: "regulamento-interno", // <--- Adicionado para roteamento
+    slug: "regulamento-interno",
     color: "bg-slate-50 text-slate-600 border-slate-200",
   },
 ];
@@ -143,10 +145,8 @@ export default function TemplatesPage() {
       <main className="max-w-[1400px] mx-auto w-full px-6 py-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {templatesList.map((template) => {
-            // Verifica se é Word (para abrir tela) ou outro (para baixar)
-            const isOnlineForm =
-              template.arquivo.endsWith(".docx") ||
-              template.arquivo.endsWith(".doc");
+            // LÓGICA CORRIGIDA: Se tiver 'slug' configurado, abre a tela. Se não, baixa.
+            const isOnlineForm = !!template.slug;
 
             return (
               <div
