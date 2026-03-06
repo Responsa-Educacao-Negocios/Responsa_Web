@@ -49,8 +49,11 @@ export default function RegulamentoInternoPage() {
   const params = useParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false); // Toggle entre Editor e Preview
+  const [previewMode, setPreviewMode] = useState(false);
   const [registroId, setRegistroId] = useState<string | null>(null);
+
+  // Controle para recolher as configurações no telemóvel e não ocupar muito ecrã
+  const [showConfigMobile, setShowConfigMobile] = useState(false);
 
   const [form, setForm] = useState({
     empresa: "",
@@ -134,7 +137,6 @@ export default function RegulamentoInternoPage() {
     }
   };
 
-  // Funções de Processamento de Texto para o Preview e Print
   const varEmpresa = form.empresa
     ? form.empresa.toUpperCase()
     : "NOME DA EMPRESA";
@@ -195,111 +197,148 @@ export default function RegulamentoInternoPage() {
   };
 
   if (loading)
-    return <div className="p-20 text-center font-bold">Carregando...</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F1F5F9]">
+        <span className="material-symbols-outlined animate-spin text-4xl text-[#064384]">
+          progress_activity
+        </span>
+      </div>
+    );
 
   return (
-    <div className="bg-[#F1F5F9] min-h-screen font-sans flex flex-col h-screen overflow-hidden">
-      {/* HEADER DINÂMICO */}
-      <header className="bg-white px-8 py-4 flex justify-between items-center border-b shrink-0 shadow-sm z-20">
-        <div className="flex items-center gap-4">
+    <div className="bg-[#F1F5F9] min-h-screen font-sans flex flex-col h-screen overflow-hidden w-full">
+      {/* HEADER RESPONSIVO */}
+      <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-4 sm:py-5 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 shadow-sm z-20 shrink-0 w-full">
+        <div className="flex items-center gap-3 sm:gap-4 pl-12 lg:pl-0">
           <button
             onClick={() => router.back()}
-            className="text-slate-400 hover:text-[#064384] transition-colors"
+            className="text-slate-400 hover:text-[#064384] transition-colors flex items-center justify-center"
           >
-            <span className="material-symbols-outlined">arrow_back</span>
+            <span className="material-symbols-outlined text-[20px] sm:text-[24px]">
+              arrow_back
+            </span>
           </button>
-          <h1 className="font-black text-[#064384] text-lg uppercase tracking-widest flex items-center gap-2">
-            <span className="material-symbols-outlined">gavel</span> Regulamento
-            Interno
+          <div className="hidden sm:block h-6 w-[1px] bg-slate-200"></div>
+          <h1 className="font-black text-[#064384] text-base sm:text-lg uppercase tracking-widest flex items-center gap-2 truncate">
+            <span className="material-symbols-outlined hidden sm:block text-[#FF8323]">
+              gavel
+            </span>
+            <span className="truncate">Regulamento Interno</span>
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* BOTÃO DE PREVIEW */}
+        <div className="flex items-center justify-between w-full md:w-auto gap-2 sm:gap-3 mt-2">
           <button
             onClick={() => setPreviewMode(!previewMode)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm border transition-all ${previewMode ? "bg-[#064384] text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+            className={`flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 sm:px-4 py-2.5 sm:py-2 rounded-xl font-bold text-xs sm:text-sm border transition-all active:scale-95 ${previewMode ? "bg-[#064384] text-white border-[#064384]" : "bg-white text-slate-600 hover:bg-slate-50 border-slate-200 shadow-sm"}`}
           >
-            <span className="material-symbols-outlined text-[20px]">
+            <span className="material-symbols-outlined text-[18px]">
               {previewMode ? "edit" : "visibility"}
             </span>
-            {previewMode ? "Voltar ao Editor" : "Visualizar Documento"}
+            <span className="hidden xs:inline">
+              {previewMode ? "Editar Texto" : "Visualizar PDF"}
+            </span>
+            <span className="xs:hidden">
+              {previewMode ? "Editar" : "Ver PDF"}
+            </span>
           </button>
 
           <button
             onClick={handlePrint}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-bold flex items-center gap-2 text-sm border border-slate-200"
+            className="print-hidden shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold shadow-sm transition-colors active:scale-95"
           >
-            <span className="material-symbols-outlined text-[18px]">print</span>{" "}
-            PDF
+            <span className="material-symbols-outlined text-[18px]">print</span>
+            <span className="hidden sm:inline">Imprimir</span>
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-[#FF8323] hover:bg-orange-600 text-white px-6 py-2 rounded-lg font-bold shadow-md flex items-center gap-2 text-sm"
+            className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-4 py-2.5 sm:py-2 bg-[#FF8323] hover:bg-orange-600 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md transition-all active:scale-95 disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-[18px]">
+            <span className="material-symbols-outlined text-[18px] animate-spin-slow">
               {saving ? "sync" : "save"}
-            </span>{" "}
-            Salvar
+            </span>
+            <span>{saving ? "Salvando..." : "Salvar"}</span>
           </button>
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* BARRA LATERAL (Variáveis) */}
-        <aside className="w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 shadow-sm z-10 overflow-y-auto">
-          <div className="p-6 border-b bg-slate-50/50">
-            <h2 className="font-black text-[#064384] text-xs uppercase tracking-widest">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden w-full relative">
+        {/* BARRA LATERAL (Configurações) - Expansível no Mobile */}
+        <aside
+          className={`bg-white border-b lg:border-r lg:border-b-0 border-slate-200 flex-col shrink-0 shadow-sm z-10 overflow-y-auto transition-all w-full lg:w-80 ${showConfigMobile ? "h-[45vh] flex" : "hidden lg:flex"}`}
+        >
+          <div className="p-4 sm:p-6 border-b bg-slate-50/50 flex justify-between items-center sticky top-0 z-10">
+            <h2 className="font-black text-[#064384] text-[11px] sm:text-xs uppercase tracking-widest flex items-center gap-2">
+              <span className="material-symbols-outlined text-base">
+                settings
+              </span>{" "}
               Configurações
             </h2>
+            {/* Fechar no mobile */}
+            <button
+              className="lg:hidden text-slate-400 hover:text-slate-600"
+              onClick={() => setShowConfigMobile(false)}
+            >
+              <span className="material-symbols-outlined text-xl">
+                keyboard_arrow_up
+              </span>
+            </button>
           </div>
-          <div className="p-6 space-y-5">
+
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase">
+              <label className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider">
                 Empresa no PDF
               </label>
               <input
                 value={form.empresa}
                 onChange={(e) => setForm({ ...form, empresa: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border rounded-lg outline-none focus:border-[#064384] text-sm font-bold"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#064384] focus:ring-2 focus:ring-[#064384]/10 text-xs sm:text-sm font-bold transition-all"
+                placeholder="Ex: Minha Empresa LTDA"
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-black text-slate-400 uppercase">
+              <label className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider">
                 CNPJ
               </label>
               <input
                 value={form.cnpj}
                 onChange={(e) => setForm({ ...form, cnpj: e.target.value })}
-                className="w-full p-2.5 bg-slate-50 border rounded-lg outline-none focus:border-[#064384] text-sm"
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#064384] text-xs sm:text-sm transition-all"
+                placeholder="00.000.000/0000-00"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase">
+                <label className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider">
                   Cidade
                 </label>
                 <input
                   value={form.cidade}
                   onChange={(e) => setForm({ ...form, cidade: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border rounded-lg outline-none text-sm"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#064384] text-xs sm:text-sm transition-all"
+                  placeholder="Ex: São Paulo"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase">
+                <label className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-wider">
                   UF
                 </label>
                 <input
                   value={form.uf}
                   onChange={(e) => setForm({ ...form, uf: e.target.value })}
                   maxLength={2}
-                  className="w-full p-2.5 bg-slate-50 border rounded-lg outline-none text-center text-sm uppercase"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:border-[#064384] text-center text-xs sm:text-sm uppercase transition-all"
+                  placeholder="SP"
                 />
               </div>
             </div>
-            <div className="pt-4 border-t">
-              <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block text-orange-500">
+            <div className="pt-4 border-t border-slate-100">
+              <label className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider mb-2 flex items-center gap-1.5 text-orange-500">
+                <span className="material-symbols-outlined text-[14px]">
+                  add_box
+                </span>{" "}
                 Regras Adicionais
               </label>
               <textarea
@@ -307,71 +346,87 @@ export default function RegulamentoInternoPage() {
                 onChange={(e) =>
                   setForm({ ...form, regrasAdicionais: e.target.value })
                 }
-                rows={5}
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:border-orange-500"
-                placeholder="Ex: Cláusula de Confidencialidade específica..."
+                rows={4}
+                className="w-full p-3 bg-slate-50 border border-orange-200 rounded-xl text-xs sm:text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all resize-none"
+                placeholder="Ex: Cláusula de Confidencialidade específica para T.I."
               />
             </div>
           </div>
         </aside>
 
         {/* ÁREA DE CONTEÚDO (Editor ou Preview) */}
-        <main className="flex-1 overflow-y-auto p-10 flex justify-center bg-slate-100">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 flex flex-col items-center bg-slate-100 relative">
+          {/* Botão flutuante para reabrir configurações no mobile */}
+          {!showConfigMobile && !previewMode && (
+            <button
+              onClick={() => setShowConfigMobile(true)}
+              className="lg:hidden absolute top-4 right-4 z-10 bg-white border border-slate-200 shadow-lg text-[#064384] px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-sm">
+                settings
+              </span>{" "}
+              Ajustar Variáveis
+            </button>
+          )}
+
           {previewMode ? (
             /* --- VISUALIZAÇÃO (PAPEL A4) --- */
-            <div className="bg-white w-full max-w-[800px] min-h-[2500px] p-20 shadow-2xl border border-slate-300 animate-in fade-in zoom-in-95 duration-300">
-              <div className="text-center mb-12">
-                <h1 className="text-xl font-bold uppercase underline">
+            <div className="bg-white w-full max-w-[800px] min-h-[1000px] p-6 sm:p-12 lg:p-20 shadow-2xl border border-slate-300 animate-in fade-in zoom-in-95 duration-300 mt-2 sm:mt-0">
+              <div className="text-center mb-8 sm:mb-12">
+                <h1 className="text-lg sm:text-xl font-bold uppercase underline">
                   Regulamento Interno de Trabalho
                 </h1>
-                <h2 className="text-lg font-bold mt-2 text-[#064384]">
+                <h2 className="text-base sm:text-lg font-bold mt-2 text-[#064384]">
                   {varEmpresa}
                 </h2>
               </div>
               <div
+                className="text-xs sm:text-sm"
                 dangerouslySetInnerHTML={{
                   __html: renderizarTextoHTML(form.conteudoCompleto),
                 }}
               />
 
               {form.regrasAdicionais && (
-                <div className="mt-8">
-                  <h3 className="font-bold text-base mt-6 mb-2 uppercase">
+                <div className="mt-8 border-t border-dashed border-slate-200 pt-6">
+                  <h3 className="font-bold text-sm sm:text-base mb-2 uppercase">
                     VIII - DISPOSIÇÕES ESPECIAIS
                   </h3>
-                  <p className="text-sm text-justify leading-relaxed whitespace-pre-line italic text-slate-600">
+                  <p className="text-xs sm:text-sm text-justify leading-relaxed whitespace-pre-line italic text-slate-600">
                     {form.regrasAdicionais}
                   </p>
                 </div>
               )}
 
               {/* O TERMO DE PRORROGAÇÃO NO PREVIEW */}
-              <div className="mt-20 pt-10 border-t-2 border-dashed border-slate-200">
-                <h2 className="text-lg font-bold text-center mb-8 uppercase">
+              <div className="mt-16 sm:mt-20 pt-8 sm:pt-10 border-t-2 border-dashed border-slate-200">
+                <h2 className="text-base sm:text-lg font-bold text-center mb-6 sm:mb-8 uppercase">
                   TERMO DE PRORROGAÇÃO DE CONTRATO DE TRABALHO
                 </h2>
-                <p className="text-sm text-justify leading-relaxed mb-6">
+                <p className="text-xs sm:text-sm text-justify leading-relaxed mb-4 sm:mb-6">
                   O presente termo corresponde a prorrogação do contrato de
                   experiência celebrado entre <strong>{varEmpresa}</strong>,
                   CNPJ <strong>{varCnpj}</strong> e o EMPREGADO (nome, endereço,
                   CTPS, série), pelo período de ___________ a ___________ e por
                   este fica prorrogado até ___________.
                 </p>
-                <p className="text-sm text-justify leading-relaxed mb-10">
+                <p className="text-xs sm:text-sm text-justify leading-relaxed mb-8 sm:mb-10">
                   Com este termo, ficam mantidas as cláusulas do contrato
                   principal, bem como as do regulamento em anexo ao mesmo.
                 </p>
-                <p className="text-right text-sm mb-16">
+                <p className="text-right text-xs sm:text-sm mb-12 sm:mb-16">
                   {varCidade} - {varUf}, ____/____/____
                 </p>
-                <div className="grid grid-cols-2 gap-10 text-center">
+                <div className="grid grid-cols-2 gap-6 sm:gap-10 text-center">
                   <div>
                     <div className="border-t border-slate-400 w-full mb-1"></div>
-                    <p className="font-bold text-xs">{varEmpresa}</p>
+                    <p className="font-bold text-[10px] sm:text-xs truncate px-2">
+                      {varEmpresa}
+                    </p>
                   </div>
                   <div>
                     <div className="border-t border-slate-400 w-full mb-1"></div>
-                    <p className="font-bold text-xs uppercase text-slate-400">
+                    <p className="font-bold text-[10px] sm:text-xs uppercase text-slate-400">
                       Empregado
                     </p>
                   </div>
@@ -380,13 +435,13 @@ export default function RegulamentoInternoPage() {
             </div>
           ) : (
             /* --- MODO EDITOR --- */
-            <div className="bg-white w-full max-w-[900px] shadow-xl border border-slate-200 rounded-2xl flex flex-col h-full overflow-hidden">
-              <div className="px-8 py-3 border-b bg-slate-50 flex items-center gap-2">
-                <span className="material-symbols-outlined text-orange-500 text-sm">
+            <div className="bg-white w-full max-w-[900px] shadow-xl border border-slate-200 rounded-2xl flex flex-col h-full overflow-hidden mt-12 lg:mt-0">
+              <div className="px-4 sm:px-8 py-3 border-b bg-slate-50 flex items-center gap-2 shrink-0">
+                <span className="material-symbols-outlined text-orange-500 text-lg">
                   edit_note
                 </span>
                 <span className="font-bold text-slate-600 text-xs uppercase tracking-widest">
-                  Corpo do Documento
+                  Corpo do Documento (Editor Livre)
                 </span>
               </div>
               <textarea
@@ -394,7 +449,7 @@ export default function RegulamentoInternoPage() {
                 onChange={(e) =>
                   setForm({ ...form, conteudoCompleto: e.target.value })
                 }
-                className="flex-1 w-full p-10 outline-none resize-none text-sm text-slate-800 leading-relaxed font-mono"
+                className="flex-1 w-full p-4 sm:p-8 outline-none resize-none text-[13px] sm:text-sm text-slate-800 leading-relaxed font-mono custom-scrollbar bg-white"
                 placeholder="O texto do regulamento aparece aqui..."
               />
             </div>

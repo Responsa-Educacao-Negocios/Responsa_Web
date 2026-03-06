@@ -124,22 +124,15 @@ export default function TemplatesPage() {
 
   return (
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col pb-20">
-      <header className="bg-white/95 backdrop-blur-sm pt-8 pb-6 px-8 flex justify-between items-end border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0">
-        <div>
-          <h2 className="text-3xl font-extrabold text-[#064384] tracking-tight">
+      <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0 w-full">
+        <div className="flex flex-col gap-1 sm:gap-2">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-[#064384] tracking-tight pl-12 lg:pl-0">
             Templates e Formulários
           </h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 font-medium pl-12 lg:pl-0 leading-tight">
             Preencha documentos online ou baixe as planilhas para a consultoria.
           </p>
         </div>
-        <button
-          onClick={() => router.back()}
-          className="text-slate-400 hover:text-[#064384] font-bold text-sm flex items-center gap-2"
-        >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>{" "}
-          Voltar
-        </button>
       </header>
 
       <main className="max-w-[1400px] mx-auto w-full px-6 py-10">

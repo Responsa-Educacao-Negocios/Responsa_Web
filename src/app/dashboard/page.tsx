@@ -119,71 +119,72 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased">
-      {/* COMPONENTE SIDEBAR INJETADO AQUI */}
+    <div className="flex flex-col lg:flex-row h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased">
+      {/* SIDEBAR - A responsividade agora é tratada internamente no componente */}
       <Sidebar onLogout={handleLogout} />
 
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* COMPONENTE TOPBAR INJETADO AQUI */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
         <TopBar />
 
-        <div className="flex-1 overflow-y-auto p-8 space-y-8">
-          {/* CARDS DINÂMICOS */}
+        {/* ÁREA DE CONTEÚDO COM SCROLL OTIMIZADO */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-8 scrollbar-hide">
+          {/* CARDS DE MÉTRICAS - 1 col mobile, 2 col tablet, 3 col desktop */}
           <section>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-100 group hover:border-primary/30 transition-all">
-                <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-primary/5 transition-transform group-hover:scale-110"></div>
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="rounded-lg bg-blue-50 p-2 text-primary">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
+              {/* Horas */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-slate-100 group transition-all hover:shadow-md">
+                <div className="absolute right-0 top-0 h-20 w-20 translate-x-6 -translate-y-6 rounded-full bg-primary/5 transition-transform group-hover:scale-110"></div>
+                <div className="flex items-center gap-4 mb-4 relative z-10">
+                  <div className="rounded-xl bg-blue-50 p-2.5 text-primary">
                     <span className="material-symbols-outlined">schedule</span>
                   </div>
-                  <h3 className="text-sm font-medium text-slate-500">
-                    Horas Faturáveis (Mês)
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                    Horas (Mês)
                   </h3>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-text-main">
+                <div className="flex items-baseline gap-2 relative z-10">
+                  <span className="text-3xl font-black text-slate-800">
                     {metricas.horasMes}h
                   </span>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-100 group hover:border-accent/30 transition-all">
-                <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-orange-50 transition-transform group-hover:scale-110"></div>
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="rounded-lg bg-orange-50 p-2 text-accent">
+              {/* Faturas */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-slate-100 group transition-all hover:shadow-md">
+                <div className="absolute right-0 top-0 h-20 w-20 translate-x-6 -translate-y-6 rounded-full bg-orange-50 transition-transform group-hover:scale-110"></div>
+                <div className="flex items-center gap-4 mb-4 relative z-10">
+                  <div className="rounded-xl bg-orange-50 p-2.5 text-accent">
                     <span className="material-symbols-outlined">
                       receipt_long
                     </span>
                   </div>
-                  <h3 className="text-sm font-medium text-slate-500">
-                    Faturas Pendentes
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                    Pendentes
                   </h3>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-text-main">
+                <div className="flex items-baseline gap-2 relative z-10">
+                  <span className="text-3xl font-black text-slate-800">
                     {metricas.faturasPendentes}
                   </span>
-                  <span className="text-sm text-slate-400 font-medium">
-                    Aguardando
+                  <span className="text-xs font-bold text-slate-400">
+                    faturas
                   </span>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-xl bg-white p-6 shadow-sm border border-slate-100 group hover:border-primary/30 transition-all">
-                <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-green-50 transition-transform group-hover:scale-110"></div>
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="rounded-lg bg-green-50 p-2 text-green-600">
-                    <span className="material-symbols-outlined">
-                      attach_money
-                    </span>
+              {/* Total - Ocupa 2 colunas no tablet para equilíbrio visual */}
+              <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-sm border border-slate-100 group transition-all hover:shadow-md sm:col-span-2 lg:col-span-1">
+                <div className="absolute right-0 top-0 h-20 w-20 translate-x-6 -translate-y-6 rounded-full bg-green-50 transition-transform group-hover:scale-110"></div>
+                <div className="flex items-center gap-4 mb-4 relative z-10">
+                  <div className="rounded-xl bg-green-50 p-2.5 text-green-600">
+                    <span className="material-symbols-outlined">payments</span>
                   </div>
-                  <h3 className="text-sm font-medium text-slate-500">
-                    Total Faturado
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-500 uppercase tracking-wider">
+                    Faturado
                   </h3>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-text-main">
+                <div className="flex items-baseline gap-2 relative z-10">
+                  <span className="text-2xl sm:text-3xl font-black text-green-700 truncate">
                     {formatarMoeda(metricas.totalFaturado)}
                   </span>
                 </div>
@@ -191,19 +192,21 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* LISTA DE PROJETOS DINÂMICA */}
+          {/* LISTA DE PROJETOS ATIVOS */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-text-main">
+            <div className="flex items-center justify-between px-1">
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
                 Projetos Ativos
               </h3>
+              <button className="text-xs font-bold text-primary hover:underline">
+                Ver todos
+              </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+            <div className="flex flex-col gap-4">
               {projetos.length === 0 ? (
-                <div className="text-center py-8 text-slate-500 bg-white rounded-xl border border-dashed border-slate-300">
-                  Nenhum projeto ativo encontrado. Comece prospectando um novo
-                  cliente!
+                <div className="text-center py-12 px-6 text-slate-400 bg-white rounded-2xl border-2 border-dashed border-slate-100 font-medium">
+                  Nenhum projeto ativo no momento.
                 </div>
               ) : (
                 projetos.map((projeto) => {
@@ -222,50 +225,50 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={projeto.cd_projeto}
-                      className="flex flex-col md:flex-row items-center justify-between gap-6 rounded-xl bg-white p-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow"
+                      className="flex flex-col md:flex-row items-start md:items-center justify-between gap-5 rounded-2xl bg-white p-5 shadow-sm border border-slate-50 hover:border-primary/20 hover:shadow-md transition-all"
                     >
+                      {/* Logo e Nome */}
                       <div className="flex items-center gap-4 w-full md:w-1/3">
-                        <div className="h-12 w-12 flex-shrink-0 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 font-bold text-xl">
+                        <div className="h-12 w-12 flex-shrink-0 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-black text-xl border border-slate-200">
                           {IniciaisEmpresa}
                         </div>
-                        <div>
-                          <h4 className="font-bold text-text-main truncate max-w-[200px]">
-                            {projeto.EMPRESAS?.nm_fantasia || "Empresa"}
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-800 truncate text-sm sm:text-base">
+                            {projeto.EMPRESAS?.nm_fantasia}
                           </h4>
-                          <p className="text-sm text-slate-500 truncate max-w-[200px]">
-                            {projeto.TIPOS_CONSULTORIA?.nm_servico ||
-                              "Consultoria Padrão"}
+                          <p className="text-xs text-slate-500 font-medium truncate">
+                            {projeto.TIPOS_CONSULTORIA?.nm_servico}
                           </p>
                         </div>
                       </div>
 
-                      <div className="flex flex-col w-full md:w-1/3 gap-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span className="text-slate-600">
-                            Progresso de Horas
-                          </span>
-                          <span className="text-text-main">
+                      {/* Barra de Progresso */}
+                      <div className="flex flex-col w-full md:flex-1 gap-2">
+                        <div className="flex justify-between text-[11px] sm:text-xs font-bold uppercase tracking-wider">
+                          <span className="text-slate-400">Progresso</span>
+                          <span className="text-slate-700">
                             {consumido}h{" "}
-                            <span className="text-slate-400 font-normal">
-                              de {projeto.nr_horas_contratadas}h
+                            <span className="text-slate-300">
+                              / {projeto.nr_horas_contratadas}h
                             </span>
                           </span>
                         </div>
                         <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${corBarra} transition-all duration-500`}
+                            className={`h-full rounded-full ${corBarra} transition-all duration-700 ease-out`}
                             style={{ width: `${percentualProgresso}%` }}
                           ></div>
                         </div>
                       </div>
 
-                      <div className="flex w-full md:w-auto items-center justify-end gap-3">
-                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-primary ring-1 ring-inset ring-primary/20">
+                      {/* Status e Ações */}
+                      <div className="flex w-full md:w-auto items-center justify-between md:justify-end gap-4 border-t md:border-none pt-4 md:pt-0">
+                        <span className="inline-flex items-center rounded-lg bg-blue-50 px-2.5 py-1 text-[10px] font-black uppercase text-primary border border-primary/10">
                           {projeto.tp_status}
                         </span>
-                        <button className="rounded-lg p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-colors focus:outline-none">
+                        <button className="h-10 w-10 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-50 hover:text-primary transition-all">
                           <span className="material-symbols-outlined">
-                            more_vert
+                            open_in_new
                           </span>
                         </button>
                       </div>
@@ -276,72 +279,75 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          {/* FERRAMENTAS DE CONSULTORIA */}
-          <section className="space-y-4 pb-8">
-            <h3 className="text-lg font-bold text-text-main">
-              Ferramentas de Consultoria
+          {/* FERRAMENTAS - Grid Adaptativo */}
+          <section className="space-y-4 pb-12">
+            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight px-1">
+              Ferramentas Rápidas
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <button className="flex flex-col items-start gap-4 rounded-xl bg-white p-6 shadow-sm border border-slate-200 hover:border-accent hover:shadow-md transition-all group text-left focus:outline-none">
-                <div className="rounded-lg bg-blue-50 p-3 text-primary group-hover:bg-accent group-hover:text-white transition-colors">
+            <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4">
+              <button
+                onClick={() => router.push("/templates")}
+                className="flex flex-row xs:flex-col items-center xs:items-start gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 hover:border-accent hover:shadow-md transition-all group w-full"
+              >
+                <div className="rounded-xl bg-blue-50 p-3 text-primary group-hover:bg-accent group-hover:text-white transition-all shrink-0 shadow-sm group-hover:shadow-accent/30">
                   <span className="material-symbols-outlined text-2xl">
                     description
                   </span>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-text-main text-sm">
-                    Nova Descrição de Cargo
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-800 text-sm truncate">
+                    Novo Cargo
                   </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Criar a partir de template
+                  <p className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
+                    Templates prontos
                   </p>
                 </div>
               </button>
 
-              <button className="flex flex-col items-start gap-4 rounded-xl bg-white p-6 shadow-sm border border-slate-200 hover:border-accent hover:shadow-md transition-all group text-left focus:outline-none">
-                <div className="rounded-lg bg-purple-50 p-3 text-purple-600 group-hover:bg-accent group-hover:text-white transition-colors">
+              <button className="flex flex-row xs:flex-col items-center xs:items-start gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 hover:border-accent hover:shadow-md transition-all group w-full">
+                <div className="rounded-xl bg-purple-50 p-3 text-purple-600 group-hover:bg-accent group-hover:text-white transition-all shrink-0 shadow-sm group-hover:shadow-accent/30">
                   <span className="material-symbols-outlined text-2xl">
                     link
                   </span>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-text-main text-sm">
-                    Gerar Link de Pesquisa
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-800 text-sm truncate">
+                    Pesquisas
                   </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Clima ou satisfação
+                  <p className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
+                    Clima e NPS
                   </p>
                 </div>
               </button>
 
-              <button className="flex flex-col items-start gap-4 rounded-xl bg-white p-6 shadow-sm border border-slate-200 hover:border-accent hover:shadow-md transition-all group text-left focus:outline-none">
-                <div className="rounded-lg bg-rose-50 p-3 text-rose-600 group-hover:bg-accent group-hover:text-white transition-colors">
+              <button className="flex flex-row xs:flex-col items-center xs:items-start gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 hover:border-accent hover:shadow-md transition-all group w-full">
+                <div className="rounded-xl bg-rose-50 p-3 text-rose-600 group-hover:bg-accent group-hover:text-white transition-all shrink-0 shadow-sm group-hover:shadow-accent/30">
                   <span className="material-symbols-outlined text-2xl">
                     psychology
                   </span>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-text-main text-sm">
-                    Novo Diagnóstico DISC
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-800 text-sm truncate">
+                    Teste DISC
                   </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Avaliação comportamental
+                  <p className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
+                    Comportamento
                   </p>
                 </div>
               </button>
 
-              <button className="flex flex-col items-start gap-4 rounded-xl bg-white p-6 shadow-sm border border-slate-200 hover:border-accent hover:shadow-md transition-all group text-left focus:outline-none">
-                <div className="rounded-lg bg-teal-50 p-3 text-teal-600 group-hover:bg-accent group-hover:text-white transition-colors">
+              <button className="flex flex-row xs:flex-col items-center xs:items-start gap-4 rounded-2xl bg-white p-5 shadow-sm border border-slate-100 hover:border-accent hover:shadow-md transition-all group w-full">
+                <div className="rounded-xl bg-teal-50 p-3 text-teal-600 group-hover:bg-accent group-hover:text-white transition-all shrink-0 shadow-sm group-hover:shadow-accent/30">
                   <span className="material-symbols-outlined text-2xl">
-                    download
+                    file_download
                   </span>
                 </div>
-                <div>
-                  <h4 className="font-semibold text-text-main text-sm">
-                    Relatório Consolidado
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-800 text-sm truncate">
+                    Exportar
                   </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Exportar PDF/Excel
+                  <p className="text-[10px] sm:text-xs text-slate-400 font-medium mt-0.5 truncate">
+                    Relatórios PDF
                   </p>
                 </div>
               </button>

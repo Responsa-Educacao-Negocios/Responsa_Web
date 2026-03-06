@@ -575,35 +575,35 @@ export default function FichaEmpresaPage() {
         )}
 
         {/* CABEÇALHO */}
-        <header className="bg-white/95 backdrop-blur-sm px-8 py-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-30">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-4">
-              <h2 className="text-3xl font-extrabold text-primary tracking-tight">
+        <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-30 w-full">
+          <div className="flex flex-col gap-1 sm:gap-2">
+            <div className="flex items-center gap-3 pl-12 lg:pl-0">
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-primary tracking-tight">
                 Ficha da Empresa
               </h2>
-              <span className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold uppercase tracking-wider border bg-blue-50 text-primary border-blue-200">
+              <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] sm:text-xs font-bold uppercase tracking-wider border bg-blue-50 text-primary border-blue-200">
                 Dados e Contrato
               </span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-500 font-medium pl-12 lg:pl-0">
               <span>Visão detalhada do cliente</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-3">
             {/* BOTÃO DE IMPRESSÃO */}
             <button
               onClick={handlePrint}
-              className="print-hidden flex items-center gap-2 px-5 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none"
+              className="print-hidden flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none"
             >
               <span className="material-symbols-outlined text-[18px]">
                 print
               </span>
-              PDF
+              <span className="hidden sm:inline">PDF</span>
             </button>
             <button
               onClick={() => setIsModalOpen(true)}
-              className="print-hidden flex items-center gap-2 px-5 py-3 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm focus:outline-none hover:text-primary hover:border-primary/30"
+              className="print-hidden flex-[2] sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm focus:outline-none hover:text-primary hover:border-primary/30"
             >
               <span className="material-symbols-outlined text-[18px]">
                 edit

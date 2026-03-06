@@ -394,43 +394,37 @@ export default function DiagnosticoInicialPage() {
   return (
     <div className="bg-[#F1F5F9] min-h-screen font-sans flex flex-col pb-20">
       {/* HEADER DINÂMICO COM BOTÕES */}
-      <header className="bg-white/95 backdrop-blur-sm pt-8 pb-6 px-8 flex justify-between items-end border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0">
-        <div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="text-slate-400 hover:text-[#064384] mb-1"
-            >
-              <span className="material-symbols-outlined">arrow_back</span>
-            </button>
-            <h2 className="text-3xl font-extrabold text-[#064384] tracking-tight">
+      <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0 w-full">
+        <div className="flex flex-col gap-1 sm:gap-2">
+          <div className="flex items-center gap-2 sm:gap-4 pl-12 lg:pl-0">
+            <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-primary tracking-tight">
               Diagnóstico 360°
             </h2>
           </div>
-          <p className="text-sm text-slate-500 font-medium mt-1 ml-10">
+          <p className="text-xs sm:text-sm text-slate-500 font-medium pl-12 lg:pl-0 sm:ml-10 leading-tight">
             Identifique pontos de melhoria e oportunidades de crescimento na
             gestão de pessoas.
           </p>
         </div>
 
         {/* BOTÕES: PDF e SALVAR */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-3">
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-5 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none"
+            className="print-hidden flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none"
           >
             <span className="material-symbols-outlined text-[18px]">print</span>
-            Relatório PDF
+            <span className="hidden sm:inline">PDF</span>
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 px-6 py-3 bg-[#FF8323] hover:bg-orange-600 text-white rounded-xl text-sm font-bold shadow-md transition-all focus:outline-none"
+            className="print-hidden flex-[2] sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-secondary hover:bg-orange-600 text-white rounded-xl text-sm font-bold shadow-md transition-all focus:outline-none active:scale-95 disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-[18px]">
+            <span className="material-symbols-outlined text-[18px] animate-spin-slow">
               {saving ? "sync" : "save"}
             </span>
-            Salvar Diagnóstico
+            {saving ? "Salvando..." : "Salvar"}
           </button>
         </div>
       </header>

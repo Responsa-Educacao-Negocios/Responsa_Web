@@ -19,6 +19,7 @@ export default function ProjetoLayout({
 
   const [empresaNome, setEmpresaNome] = useState("Carregando...");
   const [servicoNome, setServicoNome] = useState("...");
+  const [isMenuOpen, setIsMenuOpen] = useState(false); // Estado para o menu Mobile
 
   useEffect(() => {
     const buscarCabecalhoProjeto = async () => {
@@ -44,13 +45,14 @@ export default function ProjetoLayout({
     buscarCabecalhoProjeto();
   }, [projetoId]);
 
-  // Menu Inteligente que sabe qual página está ativa
+  // Fecha o menu lateral automaticamente sempre que uma nova página do projeto é carregada (no mobile)
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [pathname]);
+
+  // Menu Inteligente
   const menuProjeto = [
-    {
-      label: "Dashboard",
-      icon: "dashboard",
-      href: `/projetos/${projetoId}`,
-    },
+    { label: "Dashboard", icon: "dashboard", href: `/projetos/${projetoId}` },
     {
       label: "Ficha da Empresa",
       icon: "business",
@@ -76,11 +78,6 @@ export default function ProjetoLayout({
       icon: "thermostat",
       href: `/projetos/${projetoId}/clima`,
     },
-    // {
-    //   label: "Metodologia",
-    //   icon: "layers",
-    //   href: `/projetos/${projetoId}/metodologia`,
-    // },
     {
       label: "Templates",
       icon: "description",
@@ -96,10 +93,36 @@ export default function ProjetoLayout({
   const siglaEmpresa = empresaNome.substring(0, 2).toUpperCase();
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased">
-      {/* SIDEBAR CENTRALIZADA NO LAYOUT */}
-      <aside className="w-64 bg-primary text-white flex flex-col shadow-xl z-20 flex-shrink-0">
-        <div className="p-6 border-b border-white/10 flex items-center gap-3">
+    <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased relative">
+      {/* BOTÃO HAMBÚRGUER (MOBILE APENAS) */}
+      <button
+        onClick={() => setIsMenuOpen(!isMenuOpen)}
+        className="lg:hidden fixed top-4 left-4 z-[60] bg-primary text-white p-2 rounded-xl shadow-lg focus:outline-none active:scale-95 transition-transform"
+      >
+        <span className="material-symbols-outlined">
+          {isMenuOpen ? "close" : "menu"}
+        </span>
+      </button>
+
+      {/* OVERLAY ESCURO (MOBILE APENAS) */}
+      {isMenuOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-[40]"
+          onClick={() => setIsMenuOpen(false)}
+        />
+      )}
+
+      {/* SIDEBAR DO PROJETO */}
+      <aside
+        className={`
+        fixed inset-y-0 left-0 z-[50] lg:static
+        w-64 bg-primary text-white flex flex-col shadow-2xl lg:shadow-xl flex-shrink-0
+        transition-transform duration-300 ease-in-out h-full
+        ${isMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+      `}
+      >
+        {/* HEADER DA SIDEBAR */}
+        <div className="p-6 pt-16 lg:pt-6 border-b border-white/10 flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-accent text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-inner">
             {siglaEmpresa}
           </div>
@@ -119,10 +142,13 @@ export default function ProjetoLayout({
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1.5 mt-2">
-          <p className="px-4 text-[10px] font-bold uppercase tracking-[2px] text-blue-300/40 mb-3"></p>
+        {/* NAVEGAÇÃO INTERNA DO PROJETO */}
+        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1.5 mt-2 scrollbar-hide">
+          <p className="px-4 text-[10px] font-bold uppercase tracking-[2px] text-blue-300/40 mb-3">
+            Módulos do Projeto
+          </p>
+
           {menuProjeto.map((item) => {
-            // Verifica se a URL atual bate com o link do botão
             const isActive = pathname === item.href;
             return (
               <Link
@@ -145,21 +171,22 @@ export default function ProjetoLayout({
           })}
         </nav>
 
+        {/* BOTÃO VOLTAR */}
         <div className="p-4 border-t border-white/10">
           <button
             onClick={() => router.push("/projetos")}
-            className="w-full flex items-center justify-center gap-2 text-blue-200 hover:text-white hover:bg-white/5 rounded-lg py-2 transition-colors text-sm font-medium"
+            className="w-full flex items-center justify-center gap-2 text-blue-200 hover:text-white hover:bg-white/5 rounded-lg py-3 lg:py-2 transition-colors text-sm font-medium"
           >
             <span className="material-symbols-outlined text-[16px]">
               arrow_back
             </span>
-            Voltar aos Projetos
+            Sair do Projeto
           </button>
         </div>
       </aside>
 
-      {/* AQUI DENTRO SERÃO INJETADAS AS PÁGINAS (Dashboard, Empresa, Clima...) */}
-      <main className="flex-1 overflow-y-auto relative bg-[#F5F7FA]">
+      {/* ÁREA PRINCIPAL ONDE AS PÁGINAS (FILHOS) SÃO INJETADAS */}
+      <main className="flex-1 overflow-y-auto relative bg-[#F5F7FA] w-full">
         {children}
       </main>
     </div>

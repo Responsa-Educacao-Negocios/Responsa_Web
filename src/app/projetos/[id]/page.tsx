@@ -24,21 +24,20 @@ interface ProjetoDetalhe {
 
 export default function ConsultorProjetoDashboard() {
   const router = useRouter();
-  const params = useParams(); // Pega o ID da URL
+  const params = useParams();
 
   const [loading, setLoading] = useState(true);
   const [projeto, setProjeto] = useState<ProjetoDetalhe | null>(null);
 
-  // Estados com os dados Reais puxados do Banco
   const [metricas, setMetricas] = useState({
     indiceGeral: 0,
     maturidadeRH: 0,
     clima: 0,
     riscoTrabalhista: 0,
-    colaboradores: 0, // Vai ser a quantidade de linhas no DISC
-    radarData: [0, 0, 0, 0, 0, 0], // Liderança, Comunicação, etc.
-    discData: [0, 0, 0, 0], // D, I, S, C
-    desempenhoData: [0, 0, 0, 0], // Simulado por enquanto
+    colaboradores: 0,
+    radarData: [0, 0, 0, 0, 0, 0],
+    discData: [0, 0, 0, 0],
+    desempenhoData: [0, 0, 0, 0],
     alertas: [] as string[],
   });
 
@@ -48,7 +47,6 @@ export default function ConsultorProjetoDashboard() {
       if (!projetoId) return;
 
       try {
-        // 1. Busca os dados base do Projeto
         const { data: projData, error: projError } = await supabase
           .from("PROJETOS")
           .select(
@@ -64,7 +62,6 @@ export default function ConsultorProjetoDashboard() {
         if (projError) throw projError;
         setProjeto(projData as any);
 
-        // 2. Busca o Clima mais recente desse projeto
         const { data: climaData } = await supabase
           .from("AVALIACOES_CLIMA")
           .select("*")
@@ -73,7 +70,6 @@ export default function ConsultorProjetoDashboard() {
           .limit(1)
           .maybeSingle();
 
-        // 3. Busca a nota de Maturidade e Risco
         const { data: indData } = await supabase
           .from("INDICADORES_RH")
           .select("*")
@@ -82,15 +78,12 @@ export default function ConsultorProjetoDashboard() {
           .limit(1)
           .maybeSingle();
 
-        // 4. Busca todos os DISCs cadastrados para calcular as médias
         const { data: discData } = await supabase
           .from("AVALIACOES_DISC")
           .select(
             "nr_dominancia, nr_influencia, nr_estabilidade, nr_conformidade",
           )
           .eq("cd_projeto", projetoId);
-
-        // --- MATEMÁTICA PARA OS GRÁFICOS REAIS ---
 
         let radar = [0, 0, 0, 0, 0, 0];
         let notaClima = 0;
@@ -132,7 +125,6 @@ export default function ConsultorProjetoDashboard() {
         const risco = indData?.nr_risco_trabalhista || 0;
         const jsAlertas = indData?.js_alertas || [];
 
-        // Calcula a média geral do dashboard
         const mediaGeral =
           Math.round((maturidade + notaClima + (100 - risco)) / 3) || 0;
 
@@ -144,7 +136,7 @@ export default function ConsultorProjetoDashboard() {
           colaboradores: totalColabs,
           radarData: radar,
           discData: arrayDisc,
-          desempenhoData: [0, 0, 0, 0], // Será atualizado em futura tabela de performance
+          desempenhoData: [0, 0, 0, 0],
           alertas: jsAlertas,
         });
       } catch (error) {
@@ -159,7 +151,6 @@ export default function ConsultorProjetoDashboard() {
     buscarDadosDoProjeto();
   }, [params.id, router]);
 
-  // Função para exportar PDF
   const handlePrint = () => {
     const conteudo = document.getElementById("area-impressao")?.innerHTML;
     if (!conteudo) return;
@@ -178,7 +169,6 @@ export default function ConsultorProjetoDashboard() {
               @page { margin: 10mm; size: A4; }
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
               .break-inside-avoid { page-break-inside: avoid; }
-              /* Esconde botões na hora da impressão */
               .print-hidden { display: none !important; }
             }
           </style>
@@ -194,9 +184,7 @@ export default function ConsultorProjetoDashboard() {
               ${new Date().toLocaleDateString("pt-BR")}
             </div>
           </div>
-
           ${conteudo}
-
           <script>
             setTimeout(() => { window.print(); window.close(); }, 800);
           </script>
@@ -206,7 +194,6 @@ export default function ConsultorProjetoDashboard() {
     janela.document.close();
   };
 
-  // Configurações dos Gráficos (ApexCharts)
   const radarOptions: ApexCharts.ApexOptions = {
     chart: {
       type: "radar",
@@ -234,7 +221,7 @@ export default function ConsultorProjetoDashboard() {
       labels: {
         style: {
           colors: Array(6).fill("#1F2937"),
-          fontSize: "11px",
+          fontSize: "10px",
           fontFamily: "Montserrat",
         },
       },
@@ -256,7 +243,7 @@ export default function ConsultorProjetoDashboard() {
     ],
     colors: ["#EF4444", "#F59E0B", "#10B981", "#3B82F6"],
     dataLabels: { enabled: false },
-    legend: { position: "bottom", fontFamily: "Montserrat" },
+    legend: { position: "bottom", fontFamily: "Montserrat", fontSize: "12px" },
     stroke: { show: true, colors: ["#fff"], width: 2 },
     plotOptions: { pie: { donut: { size: "65%" } } },
     noData: {
@@ -265,6 +252,11 @@ export default function ConsultorProjetoDashboard() {
       verticalAlign: "middle",
       style: { color: "#64748b" },
     },
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
   };
 
   if (loading || !projeto) {
@@ -278,7 +270,6 @@ export default function ConsultorProjetoDashboard() {
     );
   }
 
-  // Helpers Visuais
   const getMaturidadeTexto = (nota: number) =>
     nota > 70 ? "Alta" : nota > 40 ? "Estruturando" : "Baixa";
   const getClimaTexto = (nota: number) =>
@@ -287,214 +278,222 @@ export default function ConsultorProjetoDashboard() {
     nota > 60 ? "Alto" : nota > 30 ? "Médio" : "Baixo";
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased">
-      <main className="flex-1 overflow-y-auto relative bg-[#F5F7FA]">
-        {/* CABEÇALHO */}
-        <header className="bg-white/95 backdrop-blur-sm px-8 py-8 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-30">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-4">
-              <h2 className="text-3xl font-extrabold text-primary tracking-tight">
+    <div className="flex flex-col lg:flex-row h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased">
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#F5F7FA] w-full">
+        {/* CABEÇALHO RESPONSIVO */}
+        <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 border-b border-slate-200 shadow-sm shrink-0 z-10 w-full">
+          {/* Título e Status */}
+          <div className="flex flex-col gap-1 sm:gap-2">
+            <div className="flex items-center gap-3">
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-primary tracking-tight pl-12 lg:pl-0">
                 Dashboard do Projeto
               </h2>
-              {/* Badge de Status do Projeto */}
-              <span className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-md bg-green-50 text-green-700 text-xs font-bold uppercase tracking-wider border border-green-200">
+              <span className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-md bg-green-50 text-green-700 text-[10px] sm:text-xs font-bold uppercase tracking-wider border border-green-200">
                 <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
                 Em Andamento
               </span>
             </div>
-
-            <div className="flex items-center gap-2 text-sm text-slate-500 font-medium">
+            <div className="hidden sm:flex items-center gap-2 text-xs sm:text-sm text-slate-500 font-medium pl-12 lg:pl-0">
               <span>Visão integrada de Gestão de Pessoas</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
-            {/* BOTÃO DE IMPRIMIR PDF */}
-            <button
-              onClick={handlePrint}
-              className="print-hidden flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold transition-colors border border-slate-200"
-            >
-              <span className="material-symbols-outlined text-[18px]">
-                print
-              </span>{" "}
-              PDF
-            </button>
-
-            {/* Etiqueta da Empresa */}
-            <div className="inline-flex items-center rounded-xl border border-slate-200 shadow-sm px-5 py-3 bg-slate-50/50 max-w-sm shrink-0">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary mr-3 shadow-inner">
+          {/* Botões e Etiqueta Mobile-friendly */}
+          <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-2 sm:gap-4 mt-2 md:mt-0">
+            <div className="flex-1 sm:flex-none inline-flex items-center rounded-xl border border-slate-200 shadow-sm px-3 sm:px-5 py-2 sm:py-3 bg-slate-50/50 min-w-0 max-w-[200px] sm:max-w-xs overflow-hidden">
+              <div className="hidden xs:flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary mr-3 shadow-inner shrink-0">
                 <span className="material-symbols-outlined text-[18px]">
                   domain
                 </span>
               </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-1">
+              <div className="flex flex-col min-w-0 w-full">
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-1 truncate">
                   Cliente Atual
                 </span>
-                <span className="truncate text-base font-bold text-slate-800 leading-none">
+                <span className="text-xs sm:text-sm lg:text-base font-black text-slate-800 leading-none truncate w-full">
                   {projeto.EMPRESAS?.nm_fantasia}
                 </span>
               </div>
             </div>
+
+            <button
+              onClick={handlePrint}
+              className="print-hidden shrink-0 flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold transition-colors border border-slate-200 h-full min-h-[44px]"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                print
+              </span>
+              <span className="hidden sm:inline">PDF</span>
+            </button>
           </div>
         </header>
 
-        {/* CONTEÚDO GRÁFICOS E CARDS (Esta DIV ganha o id="area-impressao") */}
+        {/* ÁREA COM SCROLL INTERNO PARA GRÁFICOS */}
         <div
           id="area-impressao"
-          className="p-8 space-y-6 max-w-[1400px] mx-auto"
+          className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 scrollbar-hide max-w-[1600px] mx-auto w-full"
         >
-          {/* 4 CARDS DE INDICADORES */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 break-inside-avoid">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-slate-400">
+          {/* 4 CARDS DE INDICADORES (Grid responsivo: 2 colunas mobile, 4 desktop) */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6 break-inside-avoid">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2 mb-2 sm:mb-4">
+                <span className="material-symbols-outlined text-slate-400 hidden sm:block">
                   bar_chart
                 </span>
-                <span className="bg-yellow-50 text-yellow-600 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded">
+                <span className="bg-yellow-50 text-yellow-600 text-[9px] sm:text-[10px] uppercase tracking-widest font-black px-2 py-1 rounded w-fit">
                   {getMaturidadeTexto(metricas.maturidadeRH)}
                 </span>
               </div>
               <div className="flex items-baseline gap-1">
-                <h3 className="text-3xl font-bold text-accent">
+                <h3 className="text-2xl sm:text-3xl font-black text-accent">
                   {metricas.maturidadeRH}
                 </h3>
-                <span className="text-slate-400 text-sm">/100</span>
+                <span className="text-slate-400 text-xs sm:text-sm">/100</span>
               </div>
-              <p className="text-slate-500 text-sm font-medium mt-1">
+              <p className="text-slate-500 text-[11px] sm:text-sm font-medium mt-1">
                 Maturidade RH
               </p>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-slate-400">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2 mb-2 sm:mb-4">
+                <span className="material-symbols-outlined text-slate-400 hidden sm:block">
                   thermostat
                 </span>
-                <span className="bg-blue-50 text-primary text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded">
+                <span className="bg-blue-50 text-primary text-[9px] sm:text-[10px] uppercase tracking-widest font-black px-2 py-1 rounded w-fit">
                   {getClimaTexto(metricas.clima)}
                 </span>
               </div>
               <div className="flex items-baseline gap-1">
-                <h3 className="text-3xl font-bold text-primary">
+                <h3 className="text-2xl sm:text-3xl font-black text-primary">
                   {metricas.clima}
                 </h3>
-                <span className="text-slate-400 text-sm">/100</span>
+                <span className="text-slate-400 text-xs sm:text-sm">/100</span>
               </div>
-              <p className="text-slate-500 text-sm font-medium mt-1">
-                Clima Organizacional
+              <p className="text-slate-500 text-[11px] sm:text-sm font-medium mt-1">
+                Clima Atual
               </p>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-slate-400">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2 mb-2 sm:mb-4">
+                <span className="material-symbols-outlined text-slate-400 hidden sm:block">
                   groups
                 </span>
               </div>
               <div className="flex items-baseline gap-2">
-                <h3 className="text-3xl font-bold text-text-main">
+                <h3 className="text-2xl sm:text-3xl font-black text-text-main">
                   {metricas.colaboradores}
                 </h3>
               </div>
-              <p className="text-slate-500 text-sm font-medium mt-1">
-                Colaboradores Mapeados
+              <p className="text-slate-500 text-[11px] sm:text-sm font-medium mt-1">
+                Mapeados
               </p>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <span className="material-symbols-outlined text-slate-400">
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-2 mb-2 sm:mb-4">
+                <span className="material-symbols-outlined text-slate-400 hidden sm:block">
                   shield
                 </span>
                 <span
-                  className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded ${metricas.riscoTrabalhista > 50 ? "bg-red-50 text-red-600" : "bg-orange-50 text-accent"}`}
+                  className={`text-[9px] sm:text-[10px] uppercase tracking-widest font-black px-2 py-1 rounded w-fit ${metricas.riscoTrabalhista > 50 ? "bg-red-50 text-red-600" : "bg-orange-50 text-accent"}`}
                 >
                   {getRiscoTexto(metricas.riscoTrabalhista)}
                 </span>
               </div>
               <div className="flex items-baseline gap-1">
                 <h3
-                  className={`text-3xl font-bold ${metricas.riscoTrabalhista > 50 ? "text-red-600" : "text-accent"}`}
+                  className={`text-2xl sm:text-3xl font-black ${metricas.riscoTrabalhista > 50 ? "text-red-600" : "text-accent"}`}
                 >
                   {metricas.riscoTrabalhista}
                 </h3>
-                <span className="text-slate-400 text-sm">/100</span>
+                <span className="text-slate-400 text-xs sm:text-sm">/100</span>
               </div>
-              <p className="text-slate-500 text-sm font-medium mt-1">
-                Risco Trabalhista
+              <p className="text-slate-500 text-[11px] sm:text-sm font-medium mt-1">
+                Risco Passivo
               </p>
             </div>
           </div>
 
-          {/* LINHA DE GRÁFICOS */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 break-inside-avoid">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+          {/* LINHA DE GRÁFICOS (Grid responsivo: 1 col mobile, 3 desktop) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 break-inside-avoid">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
               <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-accent text-[20px]">
                   thermostat
                 </span>
-                <h3 className="font-bold text-primary">Radar de Clima</h3>
+                <h3 className="font-bold text-primary text-sm sm:text-base">
+                  Radar de Clima
+                </h3>
               </div>
-              <div className="w-full h-64 flex justify-center items-center">
+              <div className="w-full h-56 sm:h-64 flex justify-center items-center relative">
                 {metricas.clima > 0 ? (
-                  <Chart
-                    options={radarOptions}
-                    series={[{ name: "Clima", data: metricas.radarData }]}
-                    type="radar"
-                    height={280}
-                  />
+                  <div className="w-full h-full -ml-4 sm:ml-0">
+                    <Chart
+                      options={radarOptions}
+                      series={[{ name: "Clima", data: metricas.radarData }]}
+                      type="radar"
+                      height="100%"
+                      width="100%"
+                    />
+                  </div>
                 ) : (
-                  <span className="text-sm font-medium text-slate-400">
-                    Aguardando Avaliação
+                  <span className="text-xs sm:text-sm font-medium text-slate-400 text-center">
+                    Aguardando <br /> Avaliação
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
               <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-accent text-[20px]">
                   pie_chart
                 </span>
-                <h3 className="font-bold text-primary">Distribuição DISC</h3>
+                <h3 className="font-bold text-primary text-sm sm:text-base">
+                  Distribuição DISC
+                </h3>
               </div>
-              <div className="w-full h-64 flex justify-center items-center">
+              <div className="w-full h-56 sm:h-64 flex justify-center items-center">
                 {metricas.colaboradores > 0 ? (
                   <Chart
                     options={donutOptions}
                     series={metricas.discData}
                     type="donut"
-                    height={260}
+                    height="100%"
+                    width="100%"
                   />
                 ) : (
-                  <span className="text-sm font-medium text-slate-400">
-                    Nenhum colaborador avaliado
+                  <span className="text-xs sm:text-sm font-medium text-slate-400 text-center">
+                    Nenhum colaborador <br /> avaliado
                   </span>
                 )}
               </div>
             </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
               <div className="flex items-center gap-2 mb-4">
                 <span className="material-symbols-outlined text-accent text-[20px]">
                   leaderboard
                 </span>
-                <h3 className="font-bold text-primary">Desempenho por Área</h3>
+                <h3 className="font-bold text-primary text-sm sm:text-base">
+                  Desempenho (Área)
+                </h3>
               </div>
-              <div className="w-full h-64 flex justify-center items-center">
-                <span className="text-sm font-medium text-slate-400">
-                  Módulo em Desenvolvimento
+              <div className="w-full h-56 sm:h-64 flex justify-center items-center bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                <span className="text-xs sm:text-sm font-bold text-slate-400 text-center px-4">
+                  Módulo em <br /> Desenvolvimento
                 </span>
               </div>
             </div>
           </div>
 
           {/* RODAPÉ: ALERTAS E PRÓXIMAS AÇÕES */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 break-inside-avoid">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 break-inside-avoid">
             {/* ALERTAS */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-primary mb-5 flex items-center gap-2">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h3 className="font-bold text-primary mb-5 flex items-center gap-2 text-sm sm:text-base">
                 <span className="material-symbols-outlined text-accent">
                   warning_amber
                 </span>
@@ -502,23 +501,21 @@ export default function ConsultorProjetoDashboard() {
               </h3>
               <div className="space-y-3">
                 {metricas.alertas.length === 0 ? (
-                  <p className="text-sm text-slate-400 font-medium italic p-3">
+                  <p className="text-xs sm:text-sm text-slate-400 font-medium italic p-3 bg-slate-50 rounded-xl">
                     Nenhum alerta crítico para este projeto no momento.
                   </p>
                 ) : (
                   metricas.alertas.map((alerta, idx) => (
                     <div
                       key={idx}
-                      className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100"
+                      className="flex items-start gap-3 p-3 rounded-xl bg-red-50/30 border border-red-100"
                     >
-                      <span className="material-symbols-outlined text-accent mt-0.5">
+                      <span className="material-symbols-outlined text-red-500 mt-0.5 text-lg">
                         error_outline
                       </span>
-                      <div>
-                        <p className="text-text-main font-bold text-sm">
-                          {alerta}
-                        </p>
-                      </div>
+                      <p className="text-slate-800 font-bold text-xs sm:text-sm leading-snug">
+                        {alerta}
+                      </p>
                     </div>
                   ))
                 )}
@@ -526,47 +523,48 @@ export default function ConsultorProjetoDashboard() {
             </div>
 
             {/* PRÓXIMAS AÇÕES */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-primary mb-5 flex items-center gap-2">
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h3 className="font-bold text-primary mb-5 flex items-center gap-2 text-sm sm:text-base">
                 <span className="material-symbols-outlined text-green-500">
                   task_alt
                 </span>
                 Próximas Ações
               </h3>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {metricas.clima === 0 && (
-                  <div className="flex items-center gap-4 p-3 border-b border-slate-100 last:border-0">
-                    <span className="flex-shrink-0 w-8 h-8 rounded-full bg-green-50 text-green-600 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[16px]">
+                  <div className="flex items-center gap-3 sm:gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <span className="shrink-0 size-8 sm:size-10 rounded-full bg-green-100 text-green-600 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[16px] sm:text-[20px]">
                         trending_up
                       </span>
                     </span>
-                    <span className="text-slate-600 text-sm font-medium">
+                    <span className="text-slate-700 text-xs sm:text-sm font-bold flex-1">
                       Aplicar pesquisa de clima
                     </span>
                     <button
                       onClick={() =>
                         router.push(`/projetos/${params.id}/clima`)
                       }
-                      className="ml-auto text-primary text-xs font-bold hover:text-accent hover:underline focus:outline-none uppercase tracking-wide print-hidden"
+                      className="print-hidden shrink-0 text-white bg-primary hover:bg-accent px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-colors shadow-sm"
                     >
                       Iniciar
                     </button>
                   </div>
                 )}
 
-                <div className="flex items-center gap-4 p-3 border-b border-slate-100 last:border-0">
-                  <span className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-50 text-primary flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[16px]">
+                <div className="flex items-center gap-3 sm:gap-4 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <span className="shrink-0 size-8 sm:size-10 rounded-full bg-blue-100 text-primary flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[16px] sm:text-[20px]">
                       psychology
                     </span>
                   </span>
-                  <span className="text-slate-600 text-sm font-medium">
-                    Mapear novos colaboradores (DISC)
+                  <span className="text-slate-700 text-xs sm:text-sm font-bold flex-1 leading-tight">
+                    Mapear novos <br className="sm:hidden" /> colaboradores
+                    (DISC)
                   </span>
                   <button
                     onClick={() => router.push(`/projetos/${params.id}/equipe`)}
-                    className="ml-auto text-primary text-xs font-bold hover:text-accent hover:underline focus:outline-none uppercase tracking-wide print-hidden"
+                    className="print-hidden shrink-0 text-white bg-primary hover:bg-accent px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-black uppercase tracking-widest transition-colors shadow-sm"
                   >
                     Abrir
                   </button>

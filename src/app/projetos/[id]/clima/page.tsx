@@ -206,17 +206,17 @@ export default function ClimaOrganizacionalPage() {
 
   return (
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col pb-20">
-      <header className="bg-white/95 backdrop-blur-sm pt-8 pb-6 px-8 flex justify-between items-end border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0">
-        <div>
-          <h2 className="text-3xl font-extrabold text-primary tracking-tight">
+      <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0 w-full">
+        <div className="flex flex-col gap-1 sm:gap-2">
+          <h2 className="text-xl sm:text-2xl lg:text-3xl font-extrabold text-primary tracking-tight pl-12 lg:pl-0">
             Clima Organizacional
           </h2>
-          <p className="text-sm text-slate-500 font-medium mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 font-medium pl-12 lg:pl-0 leading-tight">
             Visão geral do diagnóstico de clima para {nomeExibicao}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex w-full md:w-auto mt-2 md:mt-0">
           <button
             onClick={() => {
               const link = `${window.location.origin}/pesquisa/clima/${params.id}`;
@@ -224,8 +224,15 @@ export default function ClimaOrganizacionalPage() {
               setLinkCopiado(true);
               setTimeout(() => setLinkCopiado(false), 2000);
             }}
-            className={`px-4 py-2 rounded shadow transition-all font-bold text-xs uppercase ${linkCopiado ? "bg-green-500 text-white" : "bg-[#FF8323] text-white"}`}
+            className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl shadow-md transition-all font-bold text-xs sm:text-sm uppercase tracking-wider active:scale-95 ${
+              linkCopiado
+                ? "bg-green-500 text-white"
+                : "bg-[#FF8323] hover:bg-orange-600 text-white"
+            }`}
           >
+            <span className="material-symbols-outlined text-[18px]">
+              {linkCopiado ? "check" : "content_copy"}
+            </span>
             {linkCopiado ? "Link Copiado!" : "Lançar Pesquisa"}
           </button>
         </div>

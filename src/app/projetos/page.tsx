@@ -111,8 +111,6 @@ export default function ProjetosPage() {
     carregarDados();
   }, [router]);
 
-  // --- FUNÇÕES DE AÇÃO ---
-
   const handleOpenCreateModal = () => {
     setEditingId(null);
     setFormData({
@@ -140,7 +138,6 @@ export default function ProjetosPage() {
   const handleSaveProject = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-
     const payload = {
       cd_empresa: formData.cd_empresa,
       cd_tipo_consultoria: formData.cd_tipo_consultoria,
@@ -151,26 +148,22 @@ export default function ProjetosPage() {
 
     try {
       if (editingId) {
-        // UPDATE
         const { data, error } = await supabase
           .from("PROJETOS")
           .update(payload)
           .eq("cd_projeto", editingId)
           .select(`*, EMPRESAS(nm_fantasia), TIPOS_CONSULTORIA(nm_servico)`)
           .single();
-
         if (error) throw error;
         setProjetos(
           projetos.map((p) => (p.cd_projeto === editingId ? (data as any) : p)),
         );
       } else {
-        // INSERT
         const { data, error } = await supabase
           .from("PROJETOS")
           .insert([payload])
           .select(`*, EMPRESAS(nm_fantasia), TIPOS_CONSULTORIA(nm_servico)`)
           .single();
-
         if (error) throw error;
         setProjetos([data as any, ...projetos]);
       }
@@ -199,7 +192,6 @@ export default function ProjetosPage() {
     }
   };
 
-  // --- HELPERS VISUAIS ---
   const getBadgeStyle = (status: string) => {
     switch (status) {
       case "ATIVO":
@@ -225,35 +217,258 @@ export default function ProjetosPage() {
 
   if (loading)
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center text-primary font-bold">
         Carregando...
       </div>
     );
 
   return (
-    <div className="flex h-screen w-full bg-background-light font-display antialiased relative">
-      {/* 1. MODAL DE CADASTRO / EDIÇÃO */}
+    <div className="flex flex-col lg:flex-row h-screen w-full bg-background-light font-display antialiased overflow-hidden">
+      <Sidebar onLogout={() => router.push("/login")} />
+
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+        {/* HEADER RESPONSIVO */}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white px-4 sm:px-8 py-4 sm:h-20 shadow-sm border-b border-slate-200 z-10 flex-shrink-0 gap-4">
+          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto">
+            <h2 className="text-xl sm:text-2xl font-black text-primary pl-12 lg:pl-0">
+              Projetos
+            </h2>
+            <div className="hidden sm:block h-6 w-[1px] bg-slate-200"></div>
+            <div className="relative flex-1 sm:w-80 lg:w-96">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xl">
+                search
+              </span>
+              <input
+                className="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
+                placeholder="Buscar cliente ou serviço..."
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+            <button
+              onClick={handleOpenCreateModal}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-secondary hover:bg-orange-600 text-white font-black py-2.5 px-5 rounded-xl transition-all shadow-lg shadow-orange-500/20 active:scale-95 text-sm uppercase tracking-wider"
+            >
+              <span className="material-symbols-outlined text-[20px]">add</span>
+              <span className="hidden xs:inline">Novo Projeto</span>
+              <span className="xs:hidden">Novo</span>
+            </button>
+          </div>
+        </header>
+
+        {/* LISTAGEM RESPONSIVA (Tabela vs Cards) */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <div className="max-w-[1400px] mx-auto">
+            {/* VERSÃO DESKTOP (Tabela) */}
+            <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-widest">
+                  <tr>
+                    <th className="px-6 py-5">Cliente / Serviço</th>
+                    <th className="px-6 py-5 text-center">Status</th>
+                    <th className="px-6 py-5">Progresso de Horas</th>
+                    <th className="px-6 py-5 text-right">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {projetosFiltrados.map((p) => (
+                    <tr
+                      key={p.cd_projeto}
+                      className="hover:bg-slate-50/80 transition-colors group"
+                    >
+                      <td className="px-6 py-5">
+                        <p className="font-bold text-slate-800">
+                          {p.EMPRESAS?.nm_fantasia}
+                        </p>
+                        <p className="text-xs text-slate-400 font-medium">
+                          {p.TIPOS_CONSULTORIA?.nm_servico}
+                        </p>
+                      </td>
+                      <td className="px-6 py-5 text-center">
+                        <span
+                          className={`px-3 py-1 text-[10px] font-black rounded-lg uppercase tracking-wider ${getBadgeStyle(p.tp_status)}`}
+                        >
+                          {p.tp_status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-5">
+                        <div className="flex flex-col gap-1.5 max-w-[180px]">
+                          <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                            <span>{p.nr_horas_consumidas}h</span>
+                            <span>Total {p.nr_horas_contratadas}h</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary rounded-full"
+                              style={{
+                                width: `${Math.min((p.nr_horas_consumidas / p.nr_horas_contratadas) * 100, 100)}%`,
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button
+                            onClick={() =>
+                              router.push(`/projetos/${p.cd_projeto}`)
+                            }
+                            className="p-2 text-slate-400 hover:text-primary transition-all hover:bg-blue-50 rounded-lg"
+                          >
+                            <span className="material-symbols-outlined text-[22px]">
+                              visibility
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => handleOpenEditModal(p)}
+                            className="p-2 text-slate-400 hover:text-secondary transition-all hover:bg-orange-50 rounded-lg"
+                          >
+                            <span className="material-symbols-outlined text-[22px]">
+                              edit
+                            </span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setProjectToDelete(p);
+                              setIsDeleteModalOpen(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-red-500 transition-all hover:bg-red-50 rounded-lg"
+                          >
+                            <span className="material-symbols-outlined text-[22px]">
+                              delete
+                            </span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* VERSÃO MOBILE (Cards) */}
+            <div className="md:hidden grid grid-cols-1 gap-4">
+              {projetosFiltrados.map((p) => (
+                <div
+                  key={p.cd_projeto}
+                  className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-black text-slate-800 uppercase text-xs tracking-tight">
+                        {p.EMPRESAS?.nm_fantasia}
+                      </h4>
+                      <p className="text-xs text-slate-500 font-medium">
+                        {p.TIPOS_CONSULTORIA?.nm_servico}
+                      </p>
+                    </div>
+                    <span
+                      className={`px-2 py-1 text-[9px] font-black rounded-md uppercase ${getBadgeStyle(p.tp_status)}`}
+                    >
+                      {p.tp_status}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                      <span>
+                        Horas: {p.nr_horas_consumidas}h /{" "}
+                        {p.nr_horas_contratadas}h
+                      </span>
+                      <span>
+                        {Math.round(
+                          (p.nr_horas_consumidas / p.nr_horas_contratadas) *
+                            100,
+                        )}
+                        %
+                      </span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full"
+                        style={{
+                          width: `${Math.min((p.nr_horas_consumidas / p.nr_horas_contratadas) * 100, 100)}%`,
+                        }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => router.push(`/projetos/${p.cd_projeto}`)}
+                      className="flex-1 bg-blue-50 text-primary py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">
+                        visibility
+                      </span>{" "}
+                      Detalhes
+                    </button>
+                    <button
+                      onClick={() => handleOpenEditModal(p)}
+                      className="p-2 bg-slate-50 text-slate-400 rounded-xl"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        edit
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProjectToDelete(p);
+                        setIsDeleteModalOpen(true);
+                      }}
+                      className="p-2 bg-red-50 text-red-400 rounded-xl"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        delete
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {projetosFiltrados.length === 0 && (
+              <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-slate-100">
+                <span className="material-symbols-outlined text-5xl text-slate-200 mb-4">
+                  search_off
+                </span>
+                <p className="text-slate-400 font-medium">
+                  Nenhum projeto encontrado.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* MODAL DE CADASTRO / EDIÇÃO */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="text-lg font-bold text-primary flex items-center gap-2">
-                <span className="material-symbols-outlined text-accent">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-300">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="text-lg font-black text-primary uppercase tracking-tight flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary">
                   {editingId ? "edit_square" : "add_box"}
                 </span>
                 {editingId ? "Editar Projeto" : "Novo Projeto"}
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-red-500"
+                className="size-10 flex items-center justify-center rounded-full hover:bg-slate-200 transition-colors"
               >
-                <span className="material-symbols-outlined">close</span>
+                <span className="material-symbols-outlined text-slate-400">
+                  close
+                </span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveProject} className="p-6 space-y-4">
+            <form onSubmit={handleSaveProject} className="p-6 space-y-5">
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700">
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
                   Cliente *
                 </label>
                 <select
@@ -262,9 +477,9 @@ export default function ProjetosPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, cd_empresa: e.target.value })
                   }
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
                 >
-                  <option value="">Selecione...</option>
+                  <option value="">Selecione o cliente...</option>
                   {empresas.map((emp) => (
                     <option key={emp.id} value={emp.id}>
                       {emp.nome}
@@ -274,8 +489,8 @@ export default function ProjetosPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-sm font-semibold text-slate-700">
-                  Serviço *
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                  Tipo de Consultoria *
                 </label>
                 <select
                   required
@@ -286,9 +501,9 @@ export default function ProjetosPage() {
                       cd_tipo_consultoria: e.target.value,
                     })
                   }
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:ring-4 focus:ring-primary/10 transition-all"
                 >
-                  <option value="">Selecione...</option>
+                  <option value="">Selecione o serviço...</option>
                   {servicos.map((srv) => (
                     <option key={srv.id} value={srv.id}>
                       {srv.nome}
@@ -299,8 +514,8 @@ export default function ProjetosPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700">
-                    Horas *
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                    Horas Contratadas *
                   </label>
                   <input
                     type="number"
@@ -312,19 +527,19 @@ export default function ProjetosPage() {
                         nr_horas_contratadas: e.target.value,
                       })
                     }
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-primary/10 outline-none transition-all"
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-semibold text-slate-700">
-                    Status
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">
+                    Status do Projeto
                   </label>
                   <select
                     value={formData.tp_status}
                     onChange={(e) =>
                       setFormData({ ...formData, tp_status: e.target.value })
                     }
-                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-4 focus:ring-primary/10 outline-none transition-all"
                   >
                     <option value="ATIVO">Ativo</option>
                     <option value="CONCLUIDO">Concluído</option>
@@ -334,20 +549,20 @@ export default function ProjetosPage() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 text-sm font-bold text-slate-500"
+                  className="flex-1 py-3.5 text-xs font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-6 py-2 bg-primary text-white text-sm font-bold rounded-lg shadow-md disabled:opacity-50"
+                  className="flex-[2] py-3.5 bg-primary text-white text-xs font-black rounded-xl uppercase tracking-widest shadow-lg shadow-blue-900/20 active:scale-95 disabled:opacity-50"
                 >
-                  {isSaving ? "Salvando..." : "Salvar Alterações"}
+                  {isSaving ? "Gravando..." : "Confirmar Projeto"}
                 </button>
               </div>
             </form>
@@ -355,154 +570,42 @@ export default function ProjetosPage() {
         </div>
       )}
 
-      {/* 2. MODAL DE CONFIRMAÇÃO DE DELEÇÃO */}
+      {/* MODAL DE DELEÇÃO RESPONSIVO */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="material-symbols-outlined text-3xl">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-8 text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <span className="material-symbols-outlined text-4xl">
                 delete_forever
               </span>
             </div>
-            <h3 className="text-xl font-bold text-slate-800 mb-2">
+            <h3 className="text-xl font-black text-slate-800 mb-2 uppercase tracking-tight">
               Excluir Projeto?
             </h3>
-            <p className="text-slate-500 text-sm mb-6">
-              Esta ação não pode ser desfeita. O projeto de{" "}
-              <b>{projectToDelete?.EMPRESAS.nm_fantasia}</b> será removido
-              permanentemente.
+            <p className="text-slate-500 text-sm mb-8 leading-relaxed font-medium">
+              Esta ação removerá permanentemente o projeto de <br />
+              <b className="text-slate-800">
+                {projectToDelete?.EMPRESAS.nm_fantasia}
+              </b>
+              .
             </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setIsDeleteModalOpen(false)}
-                className="flex-1 px-4 py-2.5 border border-slate-200 text-slate-500 font-bold rounded-xl hover:bg-slate-50 transition-all"
-              >
-                Cancelar
-              </button>
+            <div className="flex flex-col gap-3">
               <button
                 onClick={handleConfirmDelete}
-                className="flex-1 px-4 py-2.5 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 shadow-lg shadow-red-200 transition-all"
+                className="w-full py-4 bg-red-500 text-white font-black text-xs uppercase tracking-widest rounded-2xl hover:bg-red-600 shadow-xl shadow-red-200 active:scale-95 transition-all"
               >
-                Sim, Excluir
+                Sim, Excluir Registro
+              </button>
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="w-full py-3 text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-slate-600 transition-all"
+              >
+                Manter Projeto
               </button>
             </div>
           </div>
         </div>
       )}
-
-      <Sidebar onLogout={() => router.push("/login")} />
-
-      <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="flex h-20 items-center justify-between bg-white px-8 shadow-sm border-b border-slate-200 z-10 flex-shrink-0">
-          {" "}
-          <div className="flex items-center gap-4">
-            {" "}
-            <h2 className="text-2xl font-bold text-primary">Projetos</h2>
-            <div className="h-6 w-[1px] bg-slate-200"></div>{" "}
-            <div className="relative w-96">
-              {" "}
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                search{" "}
-              </span>{" "}
-              <input
-                className="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 transition-all outline-none"
-                placeholder="Buscar por cliente ou projeto..."
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />{" "}
-            </div>{" "}
-          </div>{" "}
-          <div className="flex items-center gap-4">
-            {" "}
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 bg-accent hover:bg-accent-dark text-white font-bold py-2.5 px-6 rounded-lg transition-all shadow-md active:scale-95"
-            >
-              {" "}
-              <span className="material-symbols-outlined">add</span>
-              Novo Projeto{" "}
-            </button>{" "}
-            <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative">
-              {" "}
-              <span className="material-symbols-outlined">
-                notifications
-              </span>{" "}
-              <span className="absolute top-2 right-2 w-2 h-2 bg-accent rounded-full border-2 border-white"></span>{" "}
-            </button>{" "}
-          </div>{" "}
-        </header>
-
-        <div className="flex-1 overflow-auto p-8">
-          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
-                  <th className="px-6 py-4">Cliente</th>
-                  <th className="px-6 py-4 text-center">Status</th>
-                  <th className="px-6 py-4">Horas</th>
-                  <th className="px-6 py-4 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {projetosFiltrados.map((p) => (
-                  <tr
-                    key={p.cd_projeto}
-                    className="hover:bg-slate-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 font-semibold text-slate-800">
-                      {p.EMPRESAS?.nm_fantasia}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`px-3 py-1 text-[10px] font-bold rounded-full ${getBadgeStyle(p.tp_status)}`}
-                      >
-                        {p.tp_status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">
-                      {p.nr_horas_consumidas}h / {p.nr_horas_contratadas}h
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          onClick={() =>
-                            router.push(`/projetos/${p.cd_projeto}`)
-                          }
-                          className="p-2 text-slate-400 hover:text-primary transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">
-                            visibility
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => handleOpenEditModal(p)}
-                          className="p-2 text-slate-400 hover:text-accent transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">
-                            edit
-                          </span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setProjectToDelete(p);
-                            setIsDeleteModalOpen(true);
-                          }}
-                          className="p-2 text-slate-400 hover:text-red-500 transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[20px]">
-                            delete
-                          </span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </main>
     </div>
   );
 }
