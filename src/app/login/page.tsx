@@ -215,12 +215,13 @@ export default function LoginPage() {
             </div>
 
             <div className="flex justify-end">
-              <Link
-                href="/esqueci-minha-senha"
-                className="text-sm font-medium text-primary hover:text-blue-800 hover:underline transition-colors"
+              <button
+                type="button"
+                onClick={() => router.push("/recuperar-senha")}
+                className="text-sm font-bold text-slate-500 hover:text-[#FF8323] transition-colors"
               >
-                Esqueci minha senha
-              </Link>
+                Esqueceu a senha?
+              </button>
             </div>
 
             <button

@@ -21,6 +21,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
     { label: "Clientes", href: "/clientes", icon: "groups" },
     // { label: "Ferramentas", href: "/ferramentas", icon: "construction" },
     { label: "Relatórios", href: "/relatorios", icon: "bar_chart" },
+    { label: "Consultores", href: "/consultores", icon: "person" },
   ];
 
   useEffect(() => {
