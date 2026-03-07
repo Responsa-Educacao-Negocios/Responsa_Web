@@ -176,18 +176,29 @@ export default function PesquisaClimaPage() {
     setIsSaving(true);
     const projetoId = params.id as string;
 
-    // Calcula a média de cada domínio para salvar no banco exatamente como o Relatório espera
+    // 1. Função auxiliar para converter 0-100 em escala 1-5
+    const paraLikert = (valor100: number) => {
+      // Garante que o valor esteja entre 1 e 5
+      // 0-20=1, 21-40=2, 41-60=3, 61-80=4, 81-100=5
+      const valor = Math.ceil(valor100 / 20);
+      return valor === 0 ? 1 : valor;
+    };
+
     const medias: Record<string, number> = {};
     DOMINIOS.forEach((d) => {
       let soma = 0;
       d.perguntas.forEach((_, i) => {
         soma += respostasQuant[`${d.id}_${i}`] || 50;
       });
-      medias[d.id] = Math.round(soma / d.perguntas.length);
+      // Calculamos a média de 0 a 100
+      const mediaBruta = soma / d.perguntas.length;
+      // 2. Convertemos a média para a escala 1-5 que o banco espera
+      medias[d.id] = paraLikert(mediaBruta);
     });
 
     const payload = {
       cd_projeto: projetoId,
+      // Enviando valores convertidos (1 a 5)
       nr_lideranca: medias["lideranca"],
       nr_comunicac: medias["comunicac"],
       nr_reconhecir: medias["reconhecir"],
@@ -201,12 +212,14 @@ export default function PesquisaClimaPage() {
       const { error } = await supabase
         .from("RESPOSTAS_INDIVIDUAIS_CLIMA")
         .insert([payload]);
+
       if (error) throw error;
 
-      setCurrentStep(8); // Tela de Sucesso
-    } catch (error) {
+      setCurrentStep(8); // Sucesso
+    } catch (error: any) {
       console.error("Erro ao salvar:", error);
-      alert("Houve um erro ao enviar sua pesquisa. Tente novamente.");
+      // Exibe o erro detalhado se for violação de constraint novamente
+      alert(`Erro: ${error.message || "Erro ao enviar pesquisa."}`);
     } finally {
       setIsSaving(false);
     }

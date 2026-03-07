@@ -134,7 +134,6 @@ export default function DiagnosticoInicialPage() {
   const [empresaNome, setEmpresaNome] = useState("");
   const [registroExiste, setRegistroExiste] = useState(false);
 
-  // Estados de Respostas
   const [respostasQuant, setRespostasQuant] = useState<Record<string, number>>(
     {},
   );
@@ -148,13 +147,11 @@ export default function DiagnosticoInicialPage() {
         setLoading(true);
         const projetoId = params.id as string;
 
-        // 1. Busca nome da empresa para o cabeçalho
         const { data: projData } = await supabase
           .from("PROJETOS")
           .select("EMPRESAS ( nm_fantasia )")
           .eq("cd_projeto", projetoId)
           .single();
-
         if (projData) {
           const empresa = Array.isArray(projData.EMPRESAS)
             ? projData.EMPRESAS[0]
@@ -162,55 +159,43 @@ export default function DiagnosticoInicialPage() {
           setEmpresaNome(empresa?.nm_fantasia || "Empresa");
         }
 
-        // 2. Busca o diagnóstico existente
+        // Busca dados na tabela INDICADORES_RH
         const { data: indData } = await supabase
           .from("INDICADORES_RH")
           .select("*")
           .eq("cd_projeto", projetoId)
           .maybeSingle();
 
-        // SE O REGISTRO EXISTE NO BANCO, TEMOS QUE MARCAR PARA FAZER 'UPDATE' (E não Insert)
+        console.log(projetoId);
+
         if (indData) {
           setRegistroExiste(true);
-
-          // Se já tem o JSON salvo, nós preenchemos a tela!
           if (indData.js_diagnostico) {
-            // Garante que será lido corretamente (mesmo se o Supabase mandar como string)
             let diag = indData.js_diagnostico;
-            if (typeof diag === "string") {
-              try {
-                diag = JSON.parse(diag);
-              } catch (e) {
-                console.error("Erro ao ler JSON");
-              }
-            }
+            if (typeof diag === "string") diag = JSON.parse(diag);
 
+            // Preenche os estados com o que veio do banco
             setRespostasQuant(diag.quantitativas || {});
             setRespostasQuali(diag.qualitativas || {});
           }
         }
       } catch (error) {
-        console.error("Erro ao carregar diagnóstico:", error);
+        console.error("Erro ao carregar dados:", error);
       } finally {
         setLoading(false);
       }
     };
-
     if (params.id) carregarDados();
   }, [params.id]);
 
-  // --- MOTOR DE CÁLCULO DA METODOLOGIA ---
   const calcularResultados = () => {
     const pilarScores: Record<string, number> = {};
     let somaGeral = 0;
     let totalRespondidas = 0;
 
-    // Calcula a pontuação de cada pilar (0 a 100%)
-    // Fórmula: (Valor - 1) * 25. Ex: Nota 1 = 0%, Nota 3 = 50%, Nota 5 = 100%
     BLOCOS_QUANTITATIVOS.forEach((bloco) => {
       let somaBloco = 0;
       let qtdBloco = 0;
-
       bloco.perguntas.forEach((_, qIndex) => {
         const key = `${bloco.id}_${qIndex}`;
         if (respostasQuant[key]) {
@@ -221,15 +206,12 @@ export default function DiagnosticoInicialPage() {
           totalRespondidas++;
         }
       });
-
       pilarScores[bloco.id] =
         qtdBloco > 0 ? Math.round(somaBloco / qtdBloco) : 0;
     });
 
     const indiceGeral =
       totalRespondidas > 0 ? Math.round(somaGeral / totalRespondidas) : 0;
-
-    // Riscos Específicos (Fórmula Inversa da Maturidade das áreas correspondentes)
     const riscoTrabalhista =
       100 -
       Math.round(((pilarScores["B1"] || 0) + (pilarScores["B5"] || 0)) / 2);
@@ -241,9 +223,6 @@ export default function DiagnosticoInicialPage() {
           (pilarScores["B6"] || 0)) /
           3,
       );
-    const riscoClima = 100 - (pilarScores["B6"] || 0);
-
-    // Ranking de Prioridade (Do Pior para o Melhor)
     const ranking = BLOCOS_QUANTITATIVOS.map((b) => ({
       id: b.id,
       titulo: b.titulo,
@@ -251,12 +230,6 @@ export default function DiagnosticoInicialPage() {
       score: pilarScores[b.id] || 0,
     })).sort((a, b) => a.score - b.score);
 
-    const consultoriaSugerida =
-      ranking.length > 0 && totalRespondidas > 10
-        ? ranking[0].consultoria
-        : "Aguardando Respostas";
-
-    // Categoria Geral
     let categoria = {
       label: "Gestão Informal e Reativa",
       color: "text-red-600 bg-red-50",
@@ -286,142 +259,143 @@ export default function DiagnosticoInicialPage() {
       pilarScores,
       riscoTrabalhista,
       riscoTurnover,
-      riscoClima,
       ranking,
-      consultoriaSugerida,
       categoria,
     };
   };
 
   const resultados = calcularResultados();
 
-  // --- SALVAMENTO ---
   const handleSave = async () => {
     setSaving(true);
-    const projetoId = params.id as string;
-
-    const payloadJSON = {
-      quantitativas: respostasQuant,
-      qualitativas: respostasQuali,
-      resultados_calculados: resultados,
-    };
-
     const payloadDb = {
-      cd_projeto: projetoId,
+      cd_projeto: params.id,
       nr_maturidade_rh: resultados.indiceGeral,
       nr_risco_trabalhista: resultados.riscoTrabalhista,
-      js_diagnostico: payloadJSON,
+      js_diagnostico: {
+        quantitativas: respostasQuant,
+        qualitativas: respostasQuali,
+        resultados_calculados: resultados,
+      },
     };
-
     try {
-      if (registroExiste) {
+      if (registroExiste)
         await supabase
           .from("INDICADORES_RH")
           .update(payloadDb)
-          .eq("cd_projeto", projetoId);
-      } else {
+          .eq("cd_projeto", params.id);
+      else {
         await supabase.from("INDICADORES_RH").insert([payloadDb]);
         setRegistroExiste(true);
       }
       alert("Diagnóstico Estratégico salvo com sucesso!");
     } catch (error) {
-      console.error("Erro ao salvar:", error);
-      alert("Ocorreu um erro ao salvar o diagnóstico.");
+      console.error(error);
     } finally {
       setSaving(false);
     }
   };
 
-  // --- FUNÇÃO DE IMPRESSÃO / PDF ---
   const handlePrint = () => {
-    const conteudo = document.getElementById("area-impressao")?.innerHTML;
-    if (!conteudo) return;
-
     const janela = window.open("", "", "width=1200,height=900");
     if (!janela) return;
+
+    const rankingHtml = resultados.ranking
+      .map(
+        (item) => `
+      <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
+        <span style="font-size: 14px;">${item.titulo}</span>
+        <span style="font-weight: bold; color: ${item.score < 50 ? "#dc2626" : "#16a34a"};">${item.score}%</span>
+      </div>`,
+      )
+      .join("");
+
+    const qualitativoHtml = BLOCO_QUALITATIVO.perguntas
+      .map(
+        (p, i) => `
+      <div style="margin-bottom: 15px; page-break-inside: avoid;">
+        <p style="font-size: 11px; font-weight: bold; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">${p}</p>
+        <p style="font-size: 14px; color: #1e293b; background: #f8fafc; padding: 10px; border-radius: 8px; border-left: 4px solid #064384;">
+          ${respostasQuali[`Q_${i}`] || "Não informado."}
+        </p>
+      </div>`,
+      )
+      .join("");
 
     janela.document.write(`
       <html>
         <head>
           <title>Diagnóstico RH - ${empresaNome}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
           <style>
-            @media print {
-              @page { margin: 10mm; size: A4; }
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .break-inside-avoid { page-break-inside: avoid; }
-              .print-hidden { display: none !important; }
-            }
+            body { font-family: sans-serif; color: #334155; padding: 40px; line-height: 1.5; }
+            .header { border-bottom: 4px solid #064384; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .title { font-size: 24px; font-weight: 900; color: #064384; margin: 0; text-transform: uppercase; }
+            .grid { display: grid; grid-template-cols: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
+            .card { background: #f1f5f9; padding: 20px; border-radius: 12px; text-align: center; }
+            .card-val { font-size: 28px; font-weight: 900; color: #064384; display: block; }
+            .card-lab { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; }
+            .status-banner { background: #064384; color: white; padding: 20px; border-radius: 12px; margin-bottom: 30px; display: flex; justify-content: space-between; }
+            .section-title { font-size: 16px; font-weight: bold; color: #064384; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin: 30px 0 15px 0; text-transform: uppercase; }
           </style>
         </head>
-        <body class="bg-white text-slate-800 font-sans p-8">
-          <div class="border-b-2 border-[#064384] pb-4 mb-8 flex justify-between items-end">
-            <div>
-              <h1 class="text-2xl font-black text-[#064384] uppercase tracking-widest">Consultoria RH</h1>
-              <p class="text-slate-500 font-medium">Diagnóstico de Maturidade em Gestão de Pessoas 360º</p>
-              <p class="text-slate-800 font-bold mt-2">Cliente: ${empresaNome}</p>
-            </div>
-            <div class="text-right text-sm font-bold text-slate-400">
-              ${new Date().toLocaleDateString("pt-BR")}
-            </div>
+        <body>
+          <div class="header">
+            <div><h1 class="title">Relatório de Diagnóstico RH</h1><span>Maturidade de Gestão 360º</span></div>
+            <div style="text-align: right;"><strong>${empresaNome}</strong><br><small>${new Date().toLocaleDateString("pt-BR")}</small></div>
           </div>
-
-          ${conteudo}
-
-          <script>
-            setTimeout(() => { window.print(); window.close(); }, 800);
-          </script>
+          <div class="grid">
+            <div class="card"><span class="card-lab">Maturidade Geral</span><span class="card-val">${resultados.indiceGeral}%</span></div>
+            <div class="card" style="background:#fef2f2"><span class="card-lab" style="color:#ef4444">Risco Trabalhista</span><span class="card-val" style="color:#dc2626">${resultados.riscoTrabalhista}%</span></div>
+            <div class="card" style="background:#fff7ed"><span class="card-lab" style="color:#f97316">Risco Turnover</span><span class="card-val" style="color:#ea580c">${resultados.riscoTurnover}%</span></div>
+          </div>
+          <div class="status-banner">
+            <div><small>Cenário Atual:</small><br><strong>${resultados.categoria.label}</strong></div>
+            <div style="text-align: right;"><small>Prioridade Estratégica:</small><br><strong>${resultados.ranking[0].consultoria}</strong></div>
+          </div>
+          <h2 class="section-title">Desempenho por Pilar</h2>
+          ${rankingHtml}
+          <h2 class="section-title">Análise Qualitativa</h2>
+          ${qualitativoHtml}
+          <script>window.onload = () => { window.print(); window.close(); };</script>
         </body>
-      </html>
-    `);
+      </html>`);
     janela.document.close();
   };
 
-  if (loading) {
+  if (loading)
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
-        <div className="flex flex-col items-center gap-4 text-[#064384]">
-          <span className="material-symbols-outlined animate-spin text-4xl">
-            progress_activity
-          </span>
-          <span className="font-bold">Carregando metodologia...</span>
-        </div>
+        <span className="animate-spin text-[#064384] material-symbols-outlined text-4xl">
+          progress_activity
+        </span>
       </div>
     );
-  }
 
   return (
     <div className="bg-[#F1F5F9] min-h-screen font-sans flex flex-col pb-20">
-      {/* HEADER DINÂMICO COM BOTÕES */}
-      <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-10 shrink-0 w-full">
-        <div className="flex flex-col gap-1 sm:gap-2">
-          <div className="flex items-center gap-2 sm:gap-4 pl-12 lg:pl-0">
-            <h2 className="text-xl sm:text-2xl lg:text-3xl font-black text-primary tracking-tight">
-              Diagnóstico 360°
-            </h2>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-500 font-medium pl-12 lg:pl-0 sm:ml-10 leading-tight">
-            Identifique pontos de melhoria e oportunidades de crescimento na
-            gestão de pessoas.
+      <header className="bg-white/95 backdrop-blur-sm px-8 py-6 flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-10 w-full">
+        <div>
+          <h2 className="text-2xl font-black text-primary tracking-tight">
+            Diagnóstico 360°
+          </h2>
+          <p className="text-sm text-slate-500 font-medium">
+            Análise de Maturidade em Gestão de Pessoas.
           </p>
         </div>
-
-        {/* BOTÕES: PDF e SALVAR */}
-        <div className="flex items-center justify-between md:justify-end w-full md:w-auto gap-3">
+        <div className="flex items-center gap-3">
           <button
             onClick={handlePrint}
-            className="print-hidden flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-colors shadow-sm focus:outline-none"
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-all"
           >
             <span className="material-symbols-outlined text-[18px]">print</span>
-            <span className="hidden sm:inline">PDF</span>
+            PDF
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="print-hidden flex-[2] sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-secondary hover:bg-orange-600 text-white rounded-xl text-sm font-bold shadow-md transition-all focus:outline-none active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2.5 bg-[#FF8323] hover:bg-orange-600 text-white rounded-xl text-sm font-bold shadow-md active:scale-95 disabled:opacity-50 transition-all"
           >
-            <span className="material-symbols-outlined text-[18px] animate-spin-slow">
+            <span className="material-symbols-outlined text-[18px]">
               {saving ? "sync" : "save"}
             </span>
             {saving ? "Salvando..." : "Salvar"}
@@ -429,18 +403,14 @@ export default function DiagnosticoInicialPage() {
         </div>
       </header>
 
-      {/* ÁREA DE CONTEÚDO (COM ID PARA IMPRESSÃO) */}
-      <main
-        id="area-impressao"
-        className="max-w-[1000px] mx-auto w-full px-6 py-8 space-y-6"
-      >
-        {/* DASHBOARD DE RESULTADOS (Tempo Real) */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 break-inside-avoid">
+      <main className="max-w-[1000px] mx-auto w-full px-6 py-8 space-y-6">
+        {/* DASHBOARD EM TEMPO REAL */}
+        <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="md:col-span-4 flex justify-between items-center border-b border-slate-100 pb-4">
             <h2 className="font-black text-slate-800 uppercase tracking-widest text-sm flex items-center gap-2">
               <span className="material-symbols-outlined text-[#FF8323]">
                 monitoring
-              </span>
+              </span>{" "}
               Resultados em Tempo Real
             </h2>
             <div
@@ -452,10 +422,9 @@ export default function DiagnosticoInicialPage() {
               {resultados.categoria.label}
             </div>
           </div>
-
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Índice Geral (Maturidade)
+              Maturidade Geral
             </span>
             <span className="text-4xl font-black text-[#064384]">
               {resultados.indiceGeral}%
@@ -473,7 +442,7 @@ export default function DiagnosticoInicialPage() {
           </div>
           <div className="flex flex-col gap-1 border-l border-slate-100 pl-6">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Risco de Turnover
+              Risco Turnover
             </span>
             <span
               className={`text-2xl font-black ${resultados.riscoTurnover > 50 ? "text-red-500" : "text-slate-700"}`}
@@ -483,20 +452,20 @@ export default function DiagnosticoInicialPage() {
           </div>
           <div className="flex flex-col gap-1 border-l border-slate-100 pl-6">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-              Ação Prioritária (Sugerida)
+              Prioridade
             </span>
             <span className="text-sm font-bold text-[#FF8323] leading-tight mt-1">
-              {resultados.consultoriaSugerida}
+              {resultados.ranking[0].consultoria}
             </span>
           </div>
         </section>
 
-        {/* FORMULÁRIO QUANTITATIVO */}
+        {/* PERGUNTAS QUANTITATIVAS */}
         <div className="space-y-8">
           {BLOCOS_QUANTITATIVOS.map((bloco) => (
             <section
               key={bloco.id}
-              className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden break-inside-avoid"
+              className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden"
             >
               <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex justify-between items-center">
                 <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest">
@@ -528,23 +497,12 @@ export default function DiagnosticoInicialPage() {
                                 [key]: item.valor,
                               })
                             }
-                            title={item.label}
-                            className={`size-10 rounded-lg text-sm font-black transition-all flex items-center justify-center border-2 print-hidden
-                              ${
-                                val === item.valor
-                                  ? "bg-[#064384] border-[#064384] text-white shadow-md scale-110"
-                                  : "bg-white border-slate-200 text-slate-400 hover:border-[#064384]/50 hover:text-[#064384]"
-                              }
-                            `}
+                            className={`size-10 rounded-lg text-sm font-black transition-all flex items-center justify-center border-2 
+                              ${val === item.valor ? "bg-[#064384] border-[#064384] text-white shadow-md scale-110" : "bg-white border-slate-200 text-slate-400 hover:border-[#064384]/50 hover:text-[#064384]"}`}
                           >
                             {item.valor}
                           </button>
                         ))}
-
-                        {/* Versão somente-leitura para o PDF (para não mostrar botões) */}
-                        <div className="hidden print-hidden-invert text-sm font-bold text-[#064384]">
-                          {val ? `Nota: ${val}` : "Não avaliado"}
-                        </div>
                       </div>
                     </div>
                   );
@@ -554,8 +512,8 @@ export default function DiagnosticoInicialPage() {
           ))}
         </div>
 
-        {/* FORMULÁRIO QUALITATIVO (BLOCO 8) */}
-        <section className="bg-[#064384] rounded-2xl shadow-xl border border-blue-900 overflow-hidden mt-12 break-inside-avoid">
+        {/* ENTREVISTA QUALITATIVA */}
+        <section className="bg-[#064384] rounded-2xl shadow-xl border border-blue-900 overflow-hidden mt-12">
           <div className="bg-blue-900/50 px-6 py-4 border-b border-white/10 flex items-center gap-3">
             <span className="material-symbols-outlined text-[#FF8323]">
               record_voice_over
@@ -565,34 +523,24 @@ export default function DiagnosticoInicialPage() {
             </h3>
           </div>
           <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {BLOCO_QUALITATIVO.perguntas.map((pergunta, qIndex) => {
-              const key = `Q_${qIndex}`;
-              return (
-                <div key={key} className="space-y-2">
-                  <label className="text-xs font-bold text-blue-200">
-                    {pergunta}
-                  </label>
-                  {/* Para o PDF, escondemos o textarea e mostramos só o texto */}
-                  <textarea
-                    rows={3}
-                    placeholder="Anotações da entrevista..."
-                    value={respostasQuali[key] || ""}
-                    onChange={(e) =>
-                      setRespostasQuali({
-                        ...respostasQuali,
-                        [key]: e.target.value,
-                      })
-                    }
-                    className="print-hidden w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-blue-300/50 rounded-xl focus:ring-2 focus:ring-[#FF8323] outline-none transition-all text-sm resize-none"
-                  ></textarea>
-
-                  {/* Div visível só na impressão */}
-                  <div className="hidden print-hidden-invert text-white text-sm italic border-b border-white/20 pb-2">
-                    {respostasQuali[key] || "Nenhuma anotação."}
-                  </div>
-                </div>
-              );
-            })}
+            {BLOCO_QUALITATIVO.perguntas.map((pergunta, qIndex) => (
+              <div key={qIndex} className="space-y-2">
+                <label className="text-xs font-bold text-blue-200">
+                  {pergunta}
+                </label>
+                <textarea
+                  rows={3}
+                  value={respostasQuali[`Q_${qIndex}`] || ""}
+                  onChange={(e) =>
+                    setRespostasQuali({
+                      ...respostasQuali,
+                      [`Q_${qIndex}`]: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-3 bg-white/10 border border-white/20 text-white placeholder-blue-300/50 rounded-xl focus:ring-2 focus:ring-[#FF8323] outline-none transition-all text-sm resize-none"
+                ></textarea>
+              </div>
+            ))}
           </div>
         </section>
       </main>

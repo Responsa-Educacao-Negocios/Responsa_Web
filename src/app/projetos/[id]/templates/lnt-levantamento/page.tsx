@@ -8,7 +8,7 @@ const formInicial = {
   nome: "",
   area: "",
   necessidade: "",
-  tipo: "INTERNO_PRESENCIAL", // Bate com o novo ENUM
+  tipo: "INTERNO_PRESENCIAL",
   prioridade: "MEDIA",
   responsavel: "",
   status: "PLANEJADO",
@@ -18,7 +18,7 @@ const formInicial = {
   local: "",
   data: "",
   hora: "",
-  cargaHoraria: "", // Agora vai ser convertido para INT
+  cargaHoraria: "",
   custo: "",
   objetivo: "",
   conteudo: "",
@@ -37,10 +37,25 @@ export default function LNTPage() {
   const [listaTreinamentos, setListaTreinamentos] = useState<any[]>([]);
   const [registroId, setRegistroId] = useState<string | null>(null);
   const [form, setForm] = useState(formInicial);
+  const [empresaNome, setEmpresaNome] = useState("");
 
   const carregarTreinamentos = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    // Busca nome da empresa para o relatório
+    const { data: proj } = await supabase
+      .from("PROJETOS")
+      .select("EMPRESAS(nm_fantasia)")
+      .eq("cd_projeto", params.id)
+      .single();
+
+    if (proj) {
+      const emp = Array.isArray(proj.EMPRESAS)
+        ? proj.EMPRESAS[0]
+        : proj.EMPRESAS;
+      setEmpresaNome(emp?.nm_fantasia || "Empresa");
+    }
+
+    const { data } = await supabase
       .from("LNT_TREINAMENTOS")
       .select("*")
       .eq("cd_projeto", params.id)
@@ -61,7 +76,6 @@ export default function LNTPage() {
     carregarTreinamentos();
   }, [params.id]);
 
-  // Função para rolar até o formulário no Mobile
   const scrollToForm = () => {
     if (window.innerWidth < 1024) {
       setTimeout(() => {
@@ -140,27 +154,22 @@ export default function LNTPage() {
 
     try {
       if (registroId) {
-        const { error } = await supabase
+        await supabase
           .from("LNT_TREINAMENTOS")
           .update(payload)
           .eq("cd_treinamento", registroId);
-        if (error) throw error;
       } else {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from("LNT_TREINAMENTOS")
           .insert([payload])
           .select()
           .single();
-        if (error) throw error;
         if (data) setRegistroId(data.cd_treinamento);
       }
       alert("Treinamento salvo com sucesso!");
       carregarTreinamentos();
-    } catch (error: any) {
+    } catch (error) {
       console.error(error);
-      alert(
-        "Erro ao salvar. Verifique se a carga horária ou valores numéricos estão corretos.",
-      );
     } finally {
       setSaving(false);
     }
@@ -169,7 +178,6 @@ export default function LNTPage() {
   const handleDelete = async () => {
     if (!registroId) return;
     if (!confirm("Tem certeza que deseja excluir esta capacitação?")) return;
-
     setSaving(true);
     try {
       await supabase
@@ -186,6 +194,103 @@ export default function LNTPage() {
     }
   };
 
+  // --- NOVA FUNÇÃO: IMPRIMIR TUDO ---
+  const handlePrint = () => {
+    if (!form.nome)
+      return alert("Selecione ou preencha um treinamento para imprimir.");
+
+    const janela = window.open("", "", "width=1200,height=900");
+    if (!janela) return;
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>LNT - ${form.nome}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            @media print {
+              @page { margin: 15mm; size: A4; }
+              body { -webkit-print-color-adjust: exact; }
+            }
+            .section-title { border-left: 4px solid #064384; padding-left: 10px; font-weight: 900; text-transform: uppercase; color: #064384; margin-bottom: 15px; margin-top: 25px; }
+          </style>
+        </head>
+        <body class="bg-white text-slate-800 p-10 font-sans">
+          <div class="flex justify-between items-start border-b-4 border-[#FF8323] pb-6 mb-8">
+            <div>
+              <h1 class="text-2xl font-black text-[#064384] uppercase tracking-tighter">Plano de Capacitação e Treinamento</h1>
+              <p class="text-slate-500 font-bold uppercase text-xs tracking-widest mt-1">Levantamento de Necessidades (LNT)</p>
+            </div>
+            <div class="text-right">
+              <p class="font-black text-slate-900">${empresaNome}</p>
+              <p class="text-[10px] text-slate-400 font-bold uppercase">${new Date().toLocaleDateString("pt-BR")}</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-8">
+            <div>
+              <h2 class="section-title text-sm">Identificação</h2>
+              <div class="space-y-2 text-sm">
+                <p><b>Nome:</b> ${form.nome}</p>
+                <p><b>Área:</b> ${form.area}</p>
+                <p><b>Responsável:</b> ${form.responsavel}</p>
+                <p><b>Necessidade:</b> ${form.necessidade}</p>
+              </div>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <h2 class="section-title text-sm mt-0">Status e Prioridade</h2>
+              <div class="space-y-2 text-sm">
+                <p><b>Status:</b> ${form.status}</p>
+                <p><b>Prioridade:</b> ${form.prioridade}</p>
+                <p><b>Modalidade:</b> ${form.tipo}</p>
+              </div>
+            </div>
+          </div>
+
+          <h2 class="section-title text-sm">Logística e Execução</h2>
+          <div class="grid grid-cols-3 gap-4 text-sm">
+            <div class="border p-3 rounded-xl"><p class="text-[10px] uppercase font-black text-slate-400">Data Prevista</p><p class="font-bold">${form.data ? new Date(form.data).toLocaleDateString() : "---"}</p></div>
+            <div class="border p-3 rounded-xl"><p class="text-[10px] uppercase font-black text-slate-400">Carga Horária</p><p class="font-bold">${form.cargaHoraria} horas</p></div>
+            <div class="border p-3 rounded-xl"><p class="text-[10px] uppercase font-black text-slate-400">Investimento</p><p class="font-bold text-green-600">R$ ${form.custo || "0,00"}</p></div>
+            <div class="border p-3 rounded-xl col-span-2"><p class="text-[10px] uppercase font-black text-slate-400">Local / Plataforma</p><p class="font-bold">${form.local}</p></div>
+            <div class="border p-3 rounded-xl"><p class="text-[10px] uppercase font-black text-slate-400">Instrutor</p><p class="font-bold">${form.instrutor}</p></div>
+          </div>
+
+          <h2 class="section-title text-sm">Plano Didático</h2>
+          <div class="space-y-4 text-sm">
+            <div class="bg-blue-50/50 p-4 rounded-xl"><b>Objetivo:</b><br/>${form.objetivo}</div>
+            <div class="border p-4 rounded-xl"><b>Conteúdo Programático:</b><br/>${form.conteudo.replace(/\n/g, "<br/>")}</div>
+            <div class="bg-green-50/30 p-4 rounded-xl"><b>Resultados Esperados:</b><br/>${form.resultados}</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-8 mt-6">
+            <div>
+              <h2 class="section-title text-sm">Infraestrutura</h2>
+              <p class="text-sm border-l-2 pl-4 italic text-slate-600">${form.infraestrutura}</p>
+            </div>
+            <div>
+              <h2 class="section-title text-sm">Recursos Didáticos</h2>
+              <p class="text-sm border-l-2 pl-4 italic text-slate-600">${form.recursosDidaticos}</p>
+            </div>
+          </div>
+
+          <h2 class="section-title text-sm">Participantes (${form.participantes})</h2>
+          <p class="text-xs text-slate-500 leading-relaxed">${form.participantesNomes}</p>
+
+          <div class="mt-20 pt-10 border-t border-slate-100 flex justify-around text-center">
+            <div class="w-64 border-t border-slate-400 pt-2"><p class="text-[10px] font-bold uppercase">Assinatura Responsável</p></div>
+            <div class="w-64 border-t border-slate-400 pt-2"><p class="text-[10px] font-bold uppercase">Assinatura RH / Gestão</p></div>
+          </div>
+
+          <script>
+            window.onload = () => { window.print(); setTimeout(() => { window.close(); }, 500); };
+          </script>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+  };
+
   if (loading)
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
@@ -197,7 +302,6 @@ export default function LNTPage() {
 
   return (
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col h-screen overflow-hidden w-full">
-      {/* HEADER FIXO RESPONSIVO */}
       <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 shrink-0 shadow-sm z-10 w-full">
         <div className="flex items-center gap-3 sm:gap-4 pl-12 lg:pl-0">
           <button
@@ -217,13 +321,21 @@ export default function LNTPage() {
           </h1>
         </div>
 
-        {/* BOTÕES DE AÇÃO */}
         <div className="flex items-center justify-between md:justify-end gap-3 w-full md:w-auto">
+          {/* BOTÃO DE IMPRIMIR ADICIONADO */}
+          <button
+            onClick={handlePrint}
+            className="flex-1 md:flex-none bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 border border-slate-200 transition-colors active:scale-95 text-sm"
+          >
+            <span className="material-symbols-outlined text-[18px]">print</span>
+            <span className="hidden sm:inline">Imprimir</span>
+          </button>
+
           {registroId && (
             <button
               onClick={handleDelete}
               disabled={saving}
-              className="flex-1 md:flex-none bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 border border-red-100 transition-colors active:scale-95 text-sm"
+              className="flex-1 md:flex-none bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 border border-red-100 active:scale-95 text-sm"
             >
               <span className="material-symbols-outlined text-[18px]">
                 delete
@@ -234,7 +346,7 @@ export default function LNTPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-[2] md:flex-none bg-[#FF8323] hover:bg-orange-600 text-white px-5 sm:px-6 py-2.5 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 text-sm mt-2"
+            className="flex-[2] md:flex-none bg-[#FF8323] hover:bg-orange-600 text-white px-5 sm:px-6 py-2.5 rounded-xl font-bold shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50 text-sm"
           >
             <span className="material-symbols-outlined text-[18px] animate-spin-slow">
               {saving ? "sync" : "save"}
@@ -246,9 +358,7 @@ export default function LNTPage() {
         </div>
       </header>
 
-      {/* ÁREA PRINCIPAL (SIDEBAR + FORMULÁRIO) */}
       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden w-full">
-        {/* SIDEBAR - LISTA DE TREINAMENTOS */}
         <aside className="w-full lg:w-80 bg-white border-b lg:border-r lg:border-b-0 border-slate-200 flex flex-col shrink-0 shadow-sm z-0 h-[35vh] lg:h-full">
           <div className="p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <h2 className="font-black text-slate-700 text-xs sm:text-sm uppercase tracking-widest">
@@ -258,7 +368,6 @@ export default function LNTPage() {
               {listaTreinamentos.length}
             </span>
           </div>
-
           <div className="p-4 border-b border-slate-100">
             <button
               onClick={() => handleNovo(true)}
@@ -268,7 +377,6 @@ export default function LNTPage() {
               Novo Treinamento
             </button>
           </div>
-
           <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-hide">
             {listaTreinamentos.length === 0 ? (
               <p className="text-center text-xs sm:text-sm font-medium text-slate-400 mt-6">
@@ -287,30 +395,9 @@ export default function LNTPage() {
                     >
                       {t.nm_treinamento}
                     </h3>
-                    {t.tp_status === "CONCLUIDO" && (
-                      <span
-                        className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0 shadow-sm"
-                        title="Concluído"
-                      ></span>
-                    )}
-                    {t.tp_status === "PLANEJADO" && (
-                      <span
-                        className="w-2 h-2 rounded-full bg-blue-400 mt-1.5 shrink-0 shadow-sm"
-                        title="Planejado"
-                      ></span>
-                    )}
-                    {t.tp_status === "EM_ANDAMENTO" && (
-                      <span
-                        className="w-2 h-2 rounded-full bg-yellow-400 mt-1.5 shrink-0 shadow-sm"
-                        title="Em Andamento"
-                      ></span>
-                    )}
-                    {t.tp_status === "CANCELADO" && (
-                      <span
-                        className="w-2 h-2 rounded-full bg-red-400 mt-1.5 shrink-0 shadow-sm"
-                        title="Cancelado"
-                      ></span>
-                    )}
+                    <span
+                      className={`w-2 h-2 rounded-full mt-1.5 shrink-0 shadow-sm ${t.tp_status === "CONCLUIDO" ? "bg-green-500" : t.tp_status === "EM_ANDAMENTO" ? "bg-yellow-400" : t.tp_status === "CANCELADO" ? "bg-red-400" : "bg-blue-400"}`}
+                    ></span>
                   </div>
                   <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate mt-0.5">
                     {t.nm_area || "Área não definida"}
@@ -324,36 +411,21 @@ export default function LNTPage() {
           </div>
         </aside>
 
-        {/* ÁREA DO FORMULÁRIO */}
         <main
           id="area-formulario"
           className="flex-1 overflow-y-auto p-4 sm:p-8 relative bg-slate-50/50 scroll-smooth scrollbar-hide"
         >
           <div className="max-w-[800px] mx-auto pb-10">
-            {!registroId && (
-              <div className="bg-blue-50 border border-blue-200 text-[#064384] px-4 py-3 rounded-2xl mb-6 flex items-center gap-3 shadow-sm">
-                <span className="material-symbols-outlined shrink-0">info</span>
-                <p className="text-xs sm:text-sm font-bold">
-                  Você está planejando uma{" "}
-                  <span className="uppercase tracking-widest">
-                    Nova Capacitação
-                  </span>
-                  .
-                </p>
-              </div>
-            )}
-
             <form className="space-y-6" onSubmit={handleSave}>
-              {/* BLOCO 1: IDENTIFICAÇÃO DA NECESSIDADE */}
-              <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5 sm:space-y-6">
+              {/* SEÇÃO 1 */}
+              <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
                 <h2 className="text-xs sm:text-sm font-black text-[#064384] uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">
                     find_in_page
                   </span>{" "}
                   Levantamento da Necessidade
                 </h2>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="sm:col-span-2 space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Nome da Capacitação{" "}
@@ -364,12 +436,11 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, nome: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-[#064384] focus:ring-4 focus:ring-primary/10 transition-all outline-none font-semibold text-slate-800 text-sm"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-semibold text-sm"
                       placeholder="Ex: Curso de Liderança Avançada"
                       required
                     />
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Área / Departamento
@@ -379,11 +450,10 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, area: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-[#064384] outline-none text-sm font-medium"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                       placeholder="Ex: Comercial"
                     />
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Responsável pela Demanda
@@ -393,11 +463,10 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, responsavel: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-[#064384] outline-none text-sm font-medium"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                       placeholder="Quem solicitou?"
                     />
                   </div>
-
                   <div className="sm:col-span-2 space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Necessidade Identificada
@@ -408,11 +477,10 @@ export default function LNTPage() {
                         setForm({ ...form, necessidade: e.target.value })
                       }
                       rows={2}
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-[#064384] outline-none resize-none text-sm font-medium leading-relaxed"
-                      placeholder="Por que este treinamento é necessário? (Gap de competência, novo sistema, etc)"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none resize-none text-sm leading-relaxed"
+                      placeholder="Gaps de competência, novo sistema..."
                     />
                   </div>
-
                   <div className="sm:col-span-2 space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Tipo (Modalidade)
@@ -422,7 +490,7 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, tipo: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-[#064384] outline-none font-bold text-slate-700 text-sm"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm"
                     >
                       <option value="INTERNO_PRESENCIAL">
                         🏢 Interno Presencial
@@ -435,7 +503,6 @@ export default function LNTPage() {
                       <option value="EAD_ASSINCRONO">▶️ EAD Assíncrono</option>
                     </select>
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Prioridade
@@ -445,7 +512,7 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, prioridade: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-[#064384] outline-none font-bold text-slate-700 text-sm"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm"
                     >
                       <option value="BAIXA">🟢 Baixa</option>
                       <option value="MEDIA">🟡 Média</option>
@@ -453,7 +520,6 @@ export default function LNTPage() {
                       <option value="URGENTE">🔴 Urgente</option>
                     </select>
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Status
@@ -463,7 +529,7 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, status: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl focus:border-[#064384] outline-none font-bold text-slate-700 text-sm"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none font-bold text-sm"
                     >
                       <option value="PLANEJADO">📅 Planejado</option>
                       <option value="EM_ANDAMENTO">⏳ Em Andamento</option>
@@ -474,16 +540,15 @@ export default function LNTPage() {
                 </div>
               </div>
 
-              {/* BLOCO 2: LOGÍSTICA E CUSTOS */}
-              <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5 sm:space-y-6">
+              {/* SEÇÃO 2 */}
+              <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
                 <h2 className="text-xs sm:text-sm font-black text-[#FF8323] uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">
                     event_note
                   </span>{" "}
-                  Planejamento e Logística
+                  Logística
                 </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                   <div className="md:col-span-2 space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Público-Alvo
@@ -493,11 +558,10 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, publico: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                       placeholder="Ex: Lideranças da Fábrica"
                     />
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Nº Participantes
@@ -508,14 +572,12 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, participantes: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"
-                      placeholder="Ex: 15"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                     />
                   </div>
-
                   <div className="md:col-span-3 space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Lista de Participantes (Nomes)
+                      Participantes (Nomes)
                     </label>
                     <textarea
                       value={form.participantesNomes}
@@ -523,11 +585,10 @@ export default function LNTPage() {
                         setForm({ ...form, participantesNomes: e.target.value })
                       }
                       rows={2}
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium resize-none"
-                      placeholder="Ex: João Silva, Maria Souza..."
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm resize-none"
+                      placeholder="João Silva, Maria Souza..."
                     />
                   </div>
-
                   <div className="md:col-span-3 space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Instrutor / Fornecedor
@@ -537,11 +598,10 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, instrutor: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                       placeholder="Nome da empresa ou consultor"
                     />
                   </div>
-
                   <div className="md:col-span-3 space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Local de Realização
@@ -551,11 +611,10 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, local: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                       placeholder="Ex: Sala de Reuniões Matriz"
                     />
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Data Prevista
@@ -566,10 +625,9 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, data: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                     />
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Horário
@@ -580,10 +638,9 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, hora: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                     />
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Carga Horária (h)
@@ -594,14 +651,13 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, cargaHoraria: e.target.value })
                       }
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm"
                       placeholder="Ex: 8"
                     />
                   </div>
-
-                  <div className="md:col-span-3 bg-green-50 p-4 sm:p-5 rounded-2xl border border-green-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="md:col-span-3 bg-green-50 p-5 rounded-2xl border border-green-200 flex justify-between items-center">
                     <label className="text-xs sm:text-sm font-black text-green-800 uppercase tracking-wider">
-                      Custo Total Estimado (R$):
+                      Custo Total (R$):
                     </label>
                     <input
                       type="number"
@@ -610,26 +666,24 @@ export default function LNTPage() {
                       onChange={(e) =>
                         setForm({ ...form, custo: e.target.value })
                       }
-                      className="w-full sm:w-48 p-3 sm:p-2.5 bg-white border border-green-300 rounded-xl outline-none focus:ring-4 focus:ring-green-500/20 sm:text-right font-black text-green-700 text-base shadow-sm"
-                      placeholder="0.00"
+                      className="w-48 p-2.5 bg-white border border-green-300 rounded-xl outline-none text-right font-black text-green-700 text-lg shadow-sm"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* BLOCO 3: PLANO DIDÁTICO */}
-              <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5 sm:space-y-6">
+              {/* SEÇÃO 3 */}
+              <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
                 <h2 className="text-xs sm:text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
                   <span className="material-symbols-outlined text-[18px]">
                     menu_book
                   </span>{" "}
                   Plano Didático
                 </h2>
-
-                <div className="space-y-4 sm:space-y-5">
+                <div className="space-y-5">
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Objetivo do Treinamento
+                      Objetivo
                     </label>
                     <textarea
                       value={form.objetivo}
@@ -637,11 +691,9 @@ export default function LNTPage() {
                         setForm({ ...form, objetivo: e.target.value })
                       }
                       rows={2}
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none resize-none text-sm font-medium leading-relaxed"
-                      placeholder="O que os participantes devem aprender ou melhorar?"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm leading-relaxed"
                     />
                   </div>
-
                   <div className="space-y-1.5">
                     <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
                       Conteúdo Programático
@@ -652,65 +704,7 @@ export default function LNTPage() {
                         setForm({ ...form, conteudo: e.target.value })
                       }
                       rows={4}
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm font-medium leading-relaxed resize-y"
-                      placeholder="Lista dos temas, módulos ou assuntos que serão abordados."
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Resultados Esperados
-                    </label>
-                    <textarea
-                      value={form.resultados}
-                      onChange={(e) =>
-                        setForm({ ...form, resultados: e.target.value })
-                      }
-                      rows={2}
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none resize-none text-sm font-medium leading-relaxed"
-                      placeholder="Como o sucesso deste treinamento será medido?"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* BLOCO 4: RECURSOS */}
-              <div className="bg-white p-5 sm:p-8 rounded-2xl shadow-sm border border-slate-200 space-y-5 sm:space-y-6">
-                <h2 className="text-xs sm:text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-3 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[18px]">
-                    devices
-                  </span>{" "}
-                  Recursos Necessários
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Recursos Instrucionais / Didáticos
-                    </label>
-                    <textarea
-                      value={form.recursosDidaticos}
-                      onChange={(e) =>
-                        setForm({ ...form, recursosDidaticos: e.target.value })
-                      }
-                      rows={3}
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none resize-none text-sm font-medium leading-relaxed"
-                      placeholder="Apostilas, dinâmicas, brindes, certificados..."
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[11px] sm:text-xs font-bold text-slate-700 uppercase tracking-wider">
-                      Infraestrutura Necessária
-                    </label>
-                    <textarea
-                      value={form.infraestrutura}
-                      onChange={(e) =>
-                        setForm({ ...form, infraestrutura: e.target.value })
-                      }
-                      rows={3}
-                      className="w-full p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none resize-none text-sm font-medium leading-relaxed"
-                      placeholder="Projetor, TV, Coffe Break, Cadeiras, Internet..."
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none text-sm leading-relaxed"
                     />
                   </div>
                 </div>

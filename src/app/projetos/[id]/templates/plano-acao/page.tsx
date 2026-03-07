@@ -38,7 +38,6 @@ export default function BrainstormPlanoAcaoPage() {
     setLoading(false);
   };
 
-  // Função para rolar até o formulário no Mobile
   const scrollToForm = () => {
     if (window.innerWidth < 1024) {
       setTimeout(() => {
@@ -52,7 +51,6 @@ export default function BrainstormPlanoAcaoPage() {
   const carregarSessaoCompleta = async (sessao: any, autoScroll = true) => {
     setSessaoAtiva(sessao);
 
-    // Carrega a Equipe
     const { data: dataParts } = await supabase
       .from("BRAINSTORM_PARTICIPANTES")
       .select("*")
@@ -60,7 +58,6 @@ export default function BrainstormPlanoAcaoPage() {
       .order("ts_criacao", { ascending: true });
     if (dataParts) setParticipantes(dataParts);
 
-    // Carrega as Ideias
     const { data: dataIdeias } = await supabase
       .from("BRAINSTORM_IDEIAS")
       .select("*")
@@ -93,7 +90,6 @@ export default function BrainstormPlanoAcaoPage() {
   const updateSessao = (field: string, value: any) =>
     setSessaoAtiva({ ...sessaoAtiva, [field]: value });
 
-  // --- EXCLUIR SESSÃO INTEIRA ---
   const deletarSessao = async () => {
     if (!sessaoAtiva) return;
     const confirmar = window.confirm(
@@ -114,7 +110,7 @@ export default function BrainstormPlanoAcaoPage() {
       setSessaoAtiva(null);
       setParticipantes([]);
       setIdeias([]);
-      setActiveTab("metodologia"); // Volta para o início
+      setActiveTab("metodologia");
       carregarSessoes();
     } catch (e) {
       console.error(e);
@@ -124,18 +120,19 @@ export default function BrainstormPlanoAcaoPage() {
     }
   };
 
-  // --- CRUD PARTICIPANTES E PLANEJAMENTO ---
   const addParticipante = () =>
     setParticipantes([
       ...participantes,
       { cd_participante: `temp-${Date.now()}`, nm_participante: "" },
     ]);
+
   const updateParticipante = (id: string, value: string) =>
     setParticipantes(
       participantes.map((p) =>
         p.cd_participante === id ? { ...p, nm_participante: value } : p,
       ),
     );
+
   const deleteParticipante = async (id: string) => {
     if (!String(id).startsWith("temp-"))
       await supabase
@@ -148,13 +145,11 @@ export default function BrainstormPlanoAcaoPage() {
   const salvarPlanejamento = async () => {
     setSaving(true);
     try {
-      // Salva Sessão
       await supabase
         .from("BRAINSTORM_SESSOES")
         .update(sessaoAtiva)
         .eq("cd_sessao", sessaoAtiva.cd_sessao);
 
-      // Salva Participantes
       const partsToUpsert = participantes.map((p) => {
         const item = { ...p, cd_sessao: sessaoAtiva.cd_sessao };
         if (String(item.cd_participante).startsWith("temp-"))
@@ -165,7 +160,7 @@ export default function BrainstormPlanoAcaoPage() {
         await supabase.from("BRAINSTORM_PARTICIPANTES").upsert(partsToUpsert);
 
       alert("Planejamento e Equipe salvos com sucesso!");
-      carregarSessaoCompleta(sessaoAtiva, false); // Recarrega sem rolar
+      carregarSessaoCompleta(sessaoAtiva, false);
     } catch (e) {
       console.error(e);
       alert("Erro ao salvar planejamento.");
@@ -174,7 +169,6 @@ export default function BrainstormPlanoAcaoPage() {
     }
   };
 
-  // --- CRUD IDEIAS ---
   const addIdeia = () => {
     setIdeias([
       ...ideias,
@@ -187,6 +181,7 @@ export default function BrainstormPlanoAcaoPage() {
       },
     ]);
   };
+
   const updateIdeia = (id: string, field: string, value: any) => {
     setIdeias(
       ideias.map((ideia) => {
@@ -205,6 +200,7 @@ export default function BrainstormPlanoAcaoPage() {
       }),
     );
   };
+
   const deleteIdeia = async (id: string) => {
     if (!String(id).startsWith("temp-"))
       await supabase.from("BRAINSTORM_IDEIAS").delete().eq("cd_ideia", id);
@@ -239,6 +235,107 @@ export default function BrainstormPlanoAcaoPage() {
     return p ? p.nm_participante : "Autor Desconhecido/Removido";
   };
 
+  // --- FUNÇÃO ADICIONADA: IMPRIMIR TUDO ---
+  const handlePrintAll = () => {
+    if (!sessaoAtiva) return;
+
+    const rankingSorted = [...ideias].sort(
+      (a, b) => b.nr_media_votos - a.nr_media_votos,
+    );
+    const melhorIdeia =
+      rankingSorted[0]?.nm_ideia || "Nenhuma ideia registrada";
+
+    const janela = window.open("", "", "width=1200,height=900");
+    if (!janela) return;
+
+    janela.document.write(`
+      <html>
+        <head>
+          <title>Brainstorm - ${sessaoAtiva.nm_tema}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+          <style>
+            @media print {
+              @page { margin: 15mm; size: A4; }
+              body { -webkit-print-color-adjust: exact; }
+              .page-break { page-break-after: always; }
+            }
+          </style>
+        </head>
+        <body class="bg-white text-slate-800 p-10 font-sans">
+          <div class="border-b-4 border-[#064384] pb-6 mb-10">
+            <h1 class="text-3xl font-black text-[#064384] uppercase tracking-widest">Relatório de Brainstorm & Ação</h1>
+            <p class="text-slate-500 font-bold mt-2 uppercase tracking-widest text-sm">Sessão: ${sessaoAtiva.nm_tema}</p>
+          </div>
+
+          <div class="grid grid-cols-4 gap-6 mb-10">
+            <div class="border border-slate-200 p-4 rounded-xl">
+              <p class="text-[10px] font-black text-slate-400 uppercase">Participantes</p>
+              <p class="text-2xl font-black text-[#064384]">${participantes.length}</p>
+            </div>
+            <div class="border border-slate-200 p-4 rounded-xl">
+              <p class="text-[10px] font-black text-slate-400 uppercase">Ideias Geradas</p>
+              <p class="text-2xl font-black text-slate-800">${ideias.length}</p>
+            </div>
+            <div class="border border-slate-200 p-4 rounded-xl">
+              <p class="text-[10px] font-black text-slate-400 uppercase">Custo da Sessão</p>
+              <p class="text-2xl font-black text-green-600">R$ ${Number(sessaoAtiva.vl_custo || 0).toFixed(2)}</p>
+            </div>
+            <div class="bg-[#064384] p-4 rounded-xl text-white">
+              <p class="text-[10px] font-black uppercase opacity-70">Melhor Nota</p>
+              <p class="text-2xl font-black">${rankingSorted[0] ? Number(rankingSorted[0].nr_media_votos).toFixed(1) : "0.0"}</p>
+            </div>
+          </div>
+
+          <div class="mb-10">
+            <h2 class="text-lg font-black text-[#064384] border-b pb-2 mb-4 uppercase tracking-widest">Dados da Sessão</h2>
+            <p class="text-sm"><b>Data da Realização:</b> ${new Date(sessaoAtiva.dt_sessao).toLocaleDateString()}</p>
+            <p class="text-sm mt-4"><b>Equipe Participante:</b></p>
+            <ul class="list-disc pl-5 text-sm mt-2">
+              ${participantes.map((p) => `<li>${p.nm_participante}</li>`).join("")}
+            </ul>
+          </div>
+
+          <div>
+            <h2 class="text-lg font-black text-[#FF8323] border-b pb-2 mb-6 uppercase tracking-widest">Ranking de Soluções</h2>
+            <div class="space-y-4">
+              ${rankingSorted
+                .map(
+                  (id, idx) => `
+                <div class="flex items-center gap-6 p-4 rounded-xl border border-slate-100 bg-slate-50/50">
+                  <div class="size-10 shrink-0 flex items-center justify-center rounded-full font-black text-white ${idx === 0 ? "bg-yellow-500" : "bg-[#064384]"}">
+                    ${idx + 1}
+                  </div>
+                  <div class="flex-1">
+                    <p class="font-bold text-slate-800 text-sm">${id.nm_ideia}</p>
+                    <p class="text-[10px] text-slate-500 uppercase font-black">Autor: ${getNomeAutor(id.cd_participante)}</p>
+                  </div>
+                  <div class="text-right border-l pl-4">
+                    <p class="text-[9px] text-slate-400 font-bold uppercase">Média</p>
+                    <p class="text-xl font-black text-[#064384]">${Number(id.nr_media_votos).toFixed(1)}</p>
+                  </div>
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+
+          <div class="mt-20 text-center text-[10px] text-slate-300 uppercase tracking-widest font-black">
+            Relatório Gerado em ${new Date().toLocaleString()} - Sistema de Gestão Estratégica
+          </div>
+
+          <script>
+            window.onload = () => {
+              window.print();
+              setTimeout(() => { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    janela.document.close();
+  };
+
   if (loading)
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC]">
@@ -270,9 +367,22 @@ export default function BrainstormPlanoAcaoPage() {
               <span className="truncate">Brainstorm & Ação</span>
             </h1>
           </div>
+
+          {/* BOTÃO DE IMPRESSÃO ADICIONADO AQUI */}
+          {sessaoAtiva && (
+            <button
+              onClick={handlePrintAll}
+              className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl font-bold text-xs transition-all border border-slate-200 active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                print
+              </span>
+              Imprimir Relatório Completo
+            </button>
+          )}
         </div>
 
-        {/* NAVEGAÇÃO DE FASES COM SCROLL HORIZONTAL MOBILE */}
+        {/* NAVEGAÇÃO DE FASES */}
         <div className="px-4 sm:px-8 flex gap-6 sm:gap-8 overflow-x-auto whitespace-nowrap scrollbar-hide">
           {[
             { id: "metodologia", label: "1. Metodologia", icon: "menu_book" },
