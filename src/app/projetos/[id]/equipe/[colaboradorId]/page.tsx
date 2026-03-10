@@ -101,45 +101,141 @@ export default function RelatorioPsicometricoPage() {
     }
   };
 
+  // --- FUNÇÃO DE IMPRESSÃO (NOVO FORMATO PDF PROFISSIONAL) ---
   const handlePrint = () => {
-    const conteudo = document.getElementById("area-relatorio")?.innerHTML;
-    if (!conteudo) return;
-
     const janela = window.open("", "", "width=1100,height=900");
     if (!janela) return;
+
+    const disc = colab.js_pontuacao_disc;
+    const dataAvaliacao = new Date(colab.dt_admissao).toLocaleDateString(
+      "pt-BR",
+    );
+
+    // Monta o HTML das competências com o gráfico de "Atual" vs "Exigência"
+    const competenciasHtml =
+      disc.competencias
+        ?.map(
+          (c) => `
+      <div style="margin-bottom: 35px; page-break-inside: avoid;">
+        <h3 style="font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 5px;">${c.label}</h3>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+          <span style="color: #064384;">Atual: ${c.valor}%</span>
+          <span style="color: #EF4444;">Exigência do Meio: ${c.alvo}%</span>
+        </div>
+        <div style="position: relative; height: 24px; background: #f1f5f9; border-radius: 4px; width: 100%;">
+          <div style="position: absolute; left: 0; top: 0; height: 100%; background: #fee2e2; border-left: 4px solid #EF4444; width: ${c.alvo}%; border-radius: 4px 0 0 4px;"></div>
+          <div style="position: absolute; left: 0; top: 6px; height: 12px; background: #064384; width: ${c.valor}%; border-radius: 4px;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-top: 5px; font-weight: bold;">
+          <span>0%</span><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span><span>60%</span><span>70%</span><span>80%</span><span>90%</span><span>100%</span>
+        </div>
+        <p style="font-size: 12px; color: #64748b; margin-top: 10px; line-height: 1.4;">
+          Nível de aderência da característica em relação ao esperado para o cargo ou ambiente.
+        </p>
+      </div>
+    `,
+        )
+        .join("") || "";
 
     janela.document.write(`
       <html>
         <head>
           <title>Relatório DISC - ${colab.nm_completo}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
-          <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
           <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+            body { font-family: 'Inter', sans-serif; color: #334155; line-height: 1.5; margin: 0; padding: 0; }
             @media print {
-              @page { margin: 15mm; }
-              html, body { height: auto !important; overflow: visible !important; display: block !important; }
+              @page { margin: 15mm; size: A4; }
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .aba-container { display: block !important; margin-bottom: 40px; page-break-inside: avoid; }
-              .titulo-impressao { display: block !important; margin-bottom: 20px; }
-              .print-hidden { display: none !important; }
+              .page-break { page-break-before: always; }
             }
-            .titulo-impressao { display: none; }
+            .cover { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center; background: #fff; }
+            .cover-header { position: absolute; top: 40px; left: 40px; font-size: 12px; color: #94a3b8; font-weight: bold; text-transform: uppercase; }
+            .content-page { padding: 40px; }
+            .title-small { font-size: 16px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
+            .title-large { font-size: 70px; font-weight: 900; color: #064384; margin: 0; letter-spacing: -2px; }
+            .name-title { font-size: 24px; font-weight: 800; color: #1e293b; margin-top: 50px; }
+            
+            .section-title { font-size: 22px; font-weight: 900; color: #064384; border-bottom: 3px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 30px; text-transform: uppercase; }
+            
+            .disc-bar-container { margin-bottom: 20px; }
+            .disc-bar-header { display: flex; justify-content: space-between; font-size: 14px; font-weight: 800; margin-bottom: 5px; }
+            .disc-bar-bg { background: #f1f5f9; height: 28px; border-radius: 14px; width: 100%; position: relative; overflow: hidden; }
+            .disc-bar-fill { height: 100%; position: absolute; left: 0; top: 0; border-radius: 14px; }
           </style>
         </head>
-        <body class="bg-white p-8 font-sans">
-          <div class="mb-10 pb-6 border-b-2 border-[#064384] flex justify-between items-center">
-             <div>
-               <h1 class="text-2xl font-black text-[#064384] uppercase tracking-widest">MAPEAMENTO DISC</h1>
-               <p class="text-slate-500 font-medium">Relatório Psicométrico Individual</p>
-             </div>
-             <div class="text-right">
-               <h2 class="text-lg font-bold text-slate-800">${colab.nm_completo}</h2>
-               <p class="text-sm font-medium text-slate-500">Cargo: ${colab.CARGOS?.nm_titulo || "Não informado"} | Perfil: <strong class="text-slate-800">${colab.sg_perfil_disc}</strong></p>
-             </div>
+        <body>
+          <div class="cover">
+            <div class="cover-header">Relatório DISC: ${colab.nm_completo}</div>
+            <div class="title-small">Relatório de Perfil Comportamental</div>
+            <div class="title-large">DISC</div>
+            <div class="name-title">Nome: ${colab.nm_completo}</div>
+            <div style="margin-top: auto; padding-bottom: 40px; color: #64748b; font-weight: bold;">
+              DATA DA AVALIAÇÃO: ${dataAvaliacao}
+            </div>
           </div>
-          ${conteudo}
+
+          <div class="page-break content-page">
+            <h2 class="section-title">Objetivo e Perfil</h2>
+            
+            <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
+              <div>
+                <p style="font-size: 11px; color: #94a3b8; font-weight: 800; text-transform: uppercase; margin: 0;">Nome Completo</p>
+                <p style="font-size: 18px; font-weight: 800; color: #1e293b; margin: 2px 0 0 0;">${colab.nm_completo}</p>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 11px; color: #94a3b8; font-weight: 800; text-transform: uppercase; margin: 0;">Data da Avaliação</p>
+                <p style="font-size: 18px; font-weight: 800; color: #1e293b; margin: 2px 0 0 0;">${dataAvaliacao}</p>
+              </div>
+            </div>
+
+            <div style="background: #f8fafc; padding: 25px; border-left: 6px solid #064384; border-radius: 8px; margin-bottom: 50px;">
+              <p style="font-size: 14px; margin: 0; color: #64748b; font-weight: 600;">Neste momento o candidato está predominantemente como:</p>
+              <p style="font-size: 28px; font-weight: 900; color: #064384; margin: 5px 0 0 0;">${colab.sg_perfil_disc}</p>
+              <p style="font-size: 11px; color: #94a3b8; margin-top: 15px; font-weight: bold;">* Perfis acima de 25% são considerados perfis dominantes.</p>
+            </div>
+
+            <h2 class="section-title">Composição do Perfil DISC</h2>
+            
+            <div class="disc-bar-container">
+              <div class="disc-bar-header"><span style="color: #EF4444;">DOMINÂNCIA (D)</span><span>${disc.D}%</span></div>
+              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #EF4444; width: ${disc.D}%;"></div></div>
+            </div>
+            <div class="disc-bar-container">
+              <div class="disc-bar-header"><span style="color: #EAB308;">INFLUÊNCIA (I)</span><span>${disc.I}%</span></div>
+              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #EAB308; width: ${disc.I}%;"></div></div>
+            </div>
+            <div class="disc-bar-container">
+              <div class="disc-bar-header"><span style="color: #22C55E;">ESTABILIDADE (S)</span><span>${disc.S}%</span></div>
+              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #22C55E; width: ${disc.S}%;"></div></div>
+            </div>
+            <div class="disc-bar-container">
+              <div class="disc-bar-header"><span style="color: #3B82F6;">CONFORMIDADE (C)</span><span>${disc.C}%</span></div>
+              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #3B82F6; width: ${disc.C}%;"></div></div>
+            </div>
+          </div>
+
+          <div class="page-break content-page">
+            <h2 class="section-title">Análise de Competências (Atual vs Exigência)</h2>
+            <p style="margin-bottom: 40px; color: #64748b; font-size: 14px;">
+              Abaixo são apresentadas as competências específicas. A barra em destaque <span style="color:#EF4444; font-weight:bold;">vermelho claro</span> representa o nível exigido pelo cargo, 
+              enquanto a barra interna em <span style="color:#064384; font-weight:bold;">azul</span> mostra o resultado atual do colaborador.
+            </p>
+            ${competenciasHtml}
+          </div>
+
+          <div class="page-break content-page">
+            <h2 class="section-title">Plano de Desenvolvimento Individual (PDI)</h2>
+            <div style="background: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; min-height: 300px; color: #334155; font-size: 14px;">
+              ${colab.ds_observacoes ? colab.ds_observacoes.replace(/\n/g, "<br/>") : "<i>Nenhum plano de desenvolvimento registrado até o momento.</i>"}
+            </div>
+          </div>
+
           <script>
-            setTimeout(() => { window.print(); window.close(); }, 800);
+            window.onload = () => { 
+              window.print(); 
+              setTimeout(() => window.close(), 800); 
+            };
           </script>
         </body>
       </html>
@@ -153,7 +249,7 @@ export default function RelatorioPsicometricoPage() {
 
   return (
     <div className="bg-[#F8FAFC] min-h-screen font-sans flex flex-col h-screen overflow-hidden">
-      {/* HEADER SUPERIOR (Com pl-12 para Sidebar Mobile) */}
+      {/* HEADER SUPERIOR */}
       <header className="bg-white px-4 sm:px-8 py-4 flex justify-between items-center border-b border-slate-200 sticky top-0 z-50 shrink-0">
         <button
           onClick={() => router.back()}
@@ -166,7 +262,7 @@ export default function RelatorioPsicometricoPage() {
         </button>
       </header>
 
-      {/* PERFIL DO CANDIDATO */}
+      {/* PERFIL DO CANDIDATO E BOTÕES DE EXPORTAÇÃO */}
       <div className="bg-white px-4 sm:px-8 py-5 sm:py-6 border-b border-slate-200 flex flex-col md:flex-row justify-between md:items-center gap-4 shrink-0">
         <div className="flex gap-4 sm:gap-5 items-center">
           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-[#064384] font-black text-lg shrink-0">
@@ -207,6 +303,7 @@ export default function RelatorioPsicometricoPage() {
             <span className="material-symbols-outlined text-[18px]">share</span>
             <span className="hidden xs:inline">Compartilhar</span>
           </button>
+          {/* BOTÃO DE GERAR PDF COM O NOVO LAYOUT */}
           <button
             className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#FF8323] px-4 py-2.5 sm:py-2 rounded-xl text-xs font-bold text-white hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20 active:scale-95"
             onClick={handlePrint}
@@ -214,13 +311,13 @@ export default function RelatorioPsicometricoPage() {
             <span className="material-symbols-outlined text-[18px]">
               download
             </span>
-            <span className="hidden xs:inline">Exportar PDF</span>
+            <span className="hidden xs:inline">Exportar PDF Oficial</span>
             <span className="xs:hidden">PDF</span>
           </button>
         </div>
       </div>
 
-      {/* NAVEGAÇÃO DE ABAS COM SCROLL HORIZONTAL */}
+      {/* NAVEGAÇÃO DE ABAS */}
       <div className="px-4 sm:px-8 bg-white border-b border-slate-200 flex gap-6 sm:gap-10 shrink-0 overflow-x-auto scrollbar-hide whitespace-nowrap">
         {[
           { id: "overview", label: "Visão Geral", icon: "grid_view" },
@@ -515,7 +612,7 @@ export default function RelatorioPsicometricoPage() {
         >
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-              <h2 className="text-lg sm:text-xl font-black text-[#064384] titulo-impressao border-b border-slate-100 pb-2 print:pb-0 print:border-none">
+              <h2 className="text-lg sm:text-xl font-black text-[#064384] titulo-impressao border-b border-slate-100 pb-2">
                 Matriz de Competências
               </h2>
               <div className="bg-white p-3 sm:p-4 rounded-xl border border-slate-200 flex gap-6 shadow-sm w-full sm:w-auto justify-center">
@@ -633,10 +730,10 @@ export default function RelatorioPsicometricoPage() {
                   onChange={(e) =>
                     setColab({ ...colab, ds_observacoes: e.target.value })
                   }
-                  className="w-full min-h-[160px] p-4 sm:p-6 text-slate-700 text-sm font-medium leading-relaxed border border-slate-200 rounded-xl bg-slate-50/50 focus:ring-2 focus:ring-orange-500/20 focus:border-[#FF8323] outline-none resize-none print:border-none print:bg-white print:p-0"
+                  className="w-full min-h-[160px] p-4 sm:p-6 text-slate-700 text-sm font-medium leading-relaxed border border-slate-200 rounded-xl bg-slate-50/50 focus:ring-2 focus:ring-orange-500/20 focus:border-[#FF8323] outline-none resize-none"
                   placeholder="Anote o plano de desenvolvimento baseado no resultado deste candidato..."
                 />
-                <div className="mt-4 sm:mt-6 flex justify-end print:hidden">
+                <div className="mt-4 sm:mt-6 flex justify-end">
                   <button
                     onClick={async () => {
                       const { error } = await supabase
