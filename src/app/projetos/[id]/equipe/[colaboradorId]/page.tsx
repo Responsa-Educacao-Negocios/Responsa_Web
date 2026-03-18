@@ -129,9 +129,6 @@ export default function RelatorioPsicometricoPage() {
         <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-top: 5px; font-weight: bold;">
           <span>0%</span><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span><span>60%</span><span>70%</span><span>80%</span><span>90%</span><span>100%</span>
         </div>
-        <p style="font-size: 12px; color: #64748b; margin-top: 10px; line-height: 1.4;">
-          Nível de aderência da característica em relação ao esperado para o cargo ou ambiente.
-        </p>
       </div>
     `,
         )
@@ -158,10 +155,14 @@ export default function RelatorioPsicometricoPage() {
             
             .section-title { font-size: 22px; font-weight: 900; color: #064384; border-bottom: 3px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 30px; text-transform: uppercase; }
             
-            .disc-bar-container { margin-bottom: 20px; }
-            .disc-bar-header { display: flex; justify-content: space-between; font-size: 14px; font-weight: 800; margin-bottom: 5px; }
-            .disc-bar-bg { background: #f1f5f9; height: 28px; border-radius: 14px; width: 100%; position: relative; overflow: hidden; }
-            .disc-bar-fill { height: 100%; position: absolute; left: 0; top: 0; border-radius: 14px; }
+            .disc-bar-container { margin-bottom: 25px; }
+            .disc-bar-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin-bottom: 5px; }
+            .disc-bar-bg { background: #f1f5f9; height: 24px; border-radius: 12px; width: 100%; position: relative; overflow: hidden; }
+            .disc-bar-target { position: absolute; height: 100%; border-left: 3px solid #EF4444; background: #fee2e2; z-index: 1; }
+            .disc-bar-fill { height: 10px; position: absolute; left: 0; top: 7px; border-radius: 5px; z-index: 2; background: #064384; }
+            
+            .box-insight { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-top: 30px; }
+            .label-insight { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: block; }
           </style>
         </head>
         <body>
@@ -178,63 +179,70 @@ export default function RelatorioPsicometricoPage() {
           <div class="page-break content-page">
             <h2 class="section-title">Objetivo e Perfil</h2>
             
-            <div style="display: flex; justify-content: space-between; margin-bottom: 40px;">
-              <div>
-                <p style="font-size: 11px; color: #94a3b8; font-weight: 800; text-transform: uppercase; margin: 0;">Nome Completo</p>
-                <p style="font-size: 18px; font-weight: 800; color: #1e293b; margin: 2px 0 0 0;">${colab.nm_completo}</p>
-              </div>
-              <div style="text-align: right;">
-                <p style="font-size: 11px; color: #94a3b8; font-weight: 800; text-transform: uppercase; margin: 0;">Data da Avaliação</p>
-                <p style="font-size: 18px; font-weight: 800; color: #1e293b; margin: 2px 0 0 0;">${dataAvaliacao}</p>
-              </div>
+            <div style="background: #f8fafc; padding: 25px; border-left: 6px solid #064384; border-radius: 8px; margin-bottom: 40px;">
+              <p style="font-size: 14px; margin: 0; color: #64748b; font-weight: 600;">Perfil Predominante:</p>
+              <p style="font-size: 32px; font-weight: 900; color: #064384; margin: 5px 0 0 0;">${colab.sg_perfil_disc}</p>
+              <p style="font-size: 13px; font-weight: 700; color: #475569; margin-top: 10px;">Aderência ao Cargo: ${disc.aderencia}%</p>
             </div>
 
-            <div style="background: #f8fafc; padding: 25px; border-left: 6px solid #064384; border-radius: 8px; margin-bottom: 50px;">
-              <p style="font-size: 14px; margin: 0; color: #64748b; font-weight: 600;">Neste momento o candidato está predominantemente como:</p>
-              <p style="font-size: 28px; font-weight: 900; color: #064384; margin: 5px 0 0 0;">${colab.sg_perfil_disc}</p>
-              <p style="font-size: 11px; color: #94a3b8; margin-top: 15px; font-weight: bold;">* Perfis acima de 25% são considerados perfis dominantes.</p>
-            </div>
-
-            <h2 class="section-title">Composição do Perfil DISC</h2>
+            <h2 class="section-title">Análise de Tendências (D-I-S-C)</h2>
+            <p style="font-size: 12px; color: #64748b; margin-bottom: 30px;">
+              As barras <span style="color:#064384; font-weight:bold;">azuis</span> representam o score atual. 
+              As áreas <span style="color:#EF4444; font-weight:bold;">vermelhas</span> indicam a exigência ideal para a função.
+            </p>
             
             <div class="disc-bar-container">
-              <div class="disc-bar-header"><span style="color: #EF4444;">DOMINÂNCIA (D)</span><span>${disc.D}%</span></div>
-              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #EF4444; width: ${disc.D}%;"></div></div>
+              <div class="disc-bar-header"><span>DOMINÂNCIA (D)</span><span>${disc.D}% / ${dynamicTargets.D}%</span></div>
+              <div class="disc-bar-bg">
+                <div class="disc-bar-target" style="width: ${dynamicTargets.D}%;"></div>
+                <div class="disc-bar-fill" style="width: ${disc.D}%;"></div>
+              </div>
             </div>
             <div class="disc-bar-container">
-              <div class="disc-bar-header"><span style="color: #EAB308;">INFLUÊNCIA (I)</span><span>${disc.I}%</span></div>
-              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #EAB308; width: ${disc.I}%;"></div></div>
+              <div class="disc-bar-header"><span>INFLUÊNCIA (I)</span><span>${disc.I}% / ${dynamicTargets.I}%</span></div>
+              <div class="disc-bar-bg">
+                <div class="disc-bar-target" style="width: ${dynamicTargets.I}%;"></div>
+                <div class="disc-bar-fill" style="width: ${disc.I}%;"></div>
+              </div>
             </div>
             <div class="disc-bar-container">
-              <div class="disc-bar-header"><span style="color: #22C55E;">ESTABILIDADE (S)</span><span>${disc.S}%</span></div>
-              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #22C55E; width: ${disc.S}%;"></div></div>
+              <div class="disc-bar-header"><span>ESTABILIDADE (S)</span><span>${disc.S}% / ${dynamicTargets.S}%</span></div>
+              <div class="disc-bar-bg">
+                <div class="disc-bar-target" style="width: ${dynamicTargets.S}%;"></div>
+                <div class="disc-bar-fill" style="width: ${disc.S}%;"></div>
+              </div>
             </div>
             <div class="disc-bar-container">
-              <div class="disc-bar-header"><span style="color: #3B82F6;">CONFORMIDADE (C)</span><span>${disc.C}%</span></div>
-              <div class="disc-bar-bg"><div class="disc-bar-fill" style="background: #3B82F6; width: ${disc.C}%;"></div></div>
+              <div class="disc-bar-header"><span>CONFORMIDADE (C)</span><span>${disc.C}% / ${dynamicTargets.C}%</span></div>
+              <div class="disc-bar-bg">
+                <div class="disc-bar-target" style="width: ${dynamicTargets.C}%;"></div>
+                <div class="disc-bar-fill" style="width: ${disc.C}%;"></div>
+              </div>
+            </div>
+
+            <div class="box-insight" style="border-left: 6px solid #ef4444; background: #fff5f5;">
+              <span class="label-insight" style="color: #b91c1c;">⚠️ Comportamento Sob Pressão</span>
+              <p style="font-size: 14px; color: #7f1d1d; font-weight: 600; margin: 0;">
+                Em situações de estresse elevado, ${colab.nm_completo.split(" ")[0]} ${infoPerfil.pressao}
+              </p>
             </div>
           </div>
 
           <div class="page-break content-page">
-            <h2 class="section-title">Análise de Competências (Atual vs Exigência)</h2>
-            <p style="margin-bottom: 40px; color: #64748b; font-size: 14px;">
-              Abaixo são apresentadas as competências específicas. A barra em destaque <span style="color:#EF4444; font-weight:bold;">vermelho claro</span> representa o nível exigido pelo cargo, 
-              enquanto a barra interna em <span style="color:#064384; font-weight:bold;">azul</span> mostra o resultado atual do colaborador.
-            </p>
+            <h2 class="section-title">Análise de Competências</h2>
             ${competenciasHtml}
           </div>
 
           <div class="page-break content-page">
-            <h2 class="section-title">Plano de Desenvolvimento Individual (PDI)</h2>
-            <div style="background: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; min-height: 300px; color: #334155; font-size: 14px;">
-              ${colab.ds_observacoes ? colab.ds_observacoes.replace(/\n/g, "<br/>") : "<i>Nenhum plano de desenvolvimento registrado até o momento.</i>"}
+            <h2 class="section-title">Plano de Desenvolvimento (PDI)</h2>
+            <div style="background: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; min-height: 400px; color: #334155; font-size: 14px; white-space: pre-wrap;">
+${colab.ds_observacoes || "<i>Nenhum plano de desenvolvimento registrado.</i>"}
             </div>
           </div>
 
           <script>
             window.onload = () => { 
-              window.print(); 
-              setTimeout(() => window.close(), 800); 
+              setTimeout(() => { window.print(); window.close(); }, 800); 
             };
           </script>
         </body>
@@ -244,6 +252,56 @@ export default function RelatorioPsicometricoPage() {
   };
 
   const disc = colab.js_pontuacao_disc;
+
+  // --- LÓGICA DE INTERPRETAÇÃO DINÂMICA ---
+  const perfilPrincipal = colab.sg_perfil_disc?.[0] || "D";
+  const INTERPRETACAO: Record<string, any> = {
+    D: {
+      pressao: "tende a intensificar sua Dominância. Isso pode resultar em comunicação ríspida, impaciência com processos lentos e foco excessivo em resultados rápidos, às vezes ignorando o impacto nas pessoas.",
+      cor: "text-red-600",
+      bg: "bg-red-50",
+      border: "border-red-100",
+      icon: "bolt"
+    },
+    I: {
+      pressao: "tende a se tornar excessivamente emocional ou desorganizado. Pode tentar resolver conflitos através da persuasão excessiva ou buscar aprovação constante, perdendo o foco na execução técnica.",
+      cor: "text-amber-600",
+      bg: "bg-amber-50",
+      border: "border-amber-100",
+      icon: "chat_bubble"
+    },
+    S: {
+      pressao: "tende a se retrair ou apresentar resistência passiva a mudanças bruscas. Pode ter dificuldade em tomar decisões rápidas sob estresse, preferindo manter o status quo para evitar conflitos.",
+      cor: "text-green-600",
+      bg: "bg-green-50",
+      border: "border-green-100",
+      icon: "favorite"
+    },
+    C: {
+      pressao: "tende a se tornar excessivamente crítico e perfeccionista. Pode se isolar para analisar dados exaustivamente, gerando lentidão na entrega (paralisia por análise) por medo de cometer erros.",
+      cor: "text-blue-600",
+      bg: "bg-blue-50",
+      border: "border-blue-100",
+      icon: "fact_check"
+    }
+  };
+
+  const infoPerfil = INTERPRETACAO[perfilPrincipal] || INTERPRETACAO["D"];
+
+  // Calcula alvos dinâmicos baseados na média das competências se existirem
+  const getAlvoMedio = (letra: string) => {
+    const comps = disc.competencias?.filter(c => c.letra === letra) || [];
+    if (comps.length === 0) return letra === "D" ? 90 : letra === "I" ? 60 : letra === "S" ? 40 : 30; // Fallback
+    return Math.round(comps.reduce((acc, curr) => acc + curr.alvo, 0) / comps.length);
+  };
+
+  const dynamicTargets = {
+    D: getAlvoMedio("D"),
+    I: getAlvoMedio("I"),
+    S: getAlvoMedio("S"),
+    C: getAlvoMedio("C")
+  };
+
   const getIniciais = (nome: string) => nome.substring(0, 2).toUpperCase();
   const donutGradient = `conic-gradient(#EF4444 0% ${disc.D}%, #EAB308 ${disc.D}% ${disc.D + disc.I}%, #22C55E ${disc.D + disc.I}% ${disc.D + disc.I + disc.S}%, #3B82F6 ${disc.D + disc.I + disc.S}% 100%)`;
 
@@ -438,25 +496,25 @@ export default function RelatorioPsicometricoPage() {
                   {
                     letter: "D",
                     val: disc.D,
-                    target: ALVOS_CARGO.D,
+                    target: dynamicTargets.D,
                     color: "text-[#EF4444]",
                   },
                   {
                     letter: "I",
                     val: disc.I,
-                    target: ALVOS_CARGO.I,
+                    target: dynamicTargets.I,
                     color: "text-[#EAB308]",
                   },
                   {
                     letter: "S",
                     val: disc.S,
-                    target: ALVOS_CARGO.S,
+                    target: dynamicTargets.S,
                     color: "text-[#22C55E]",
                   },
                   {
                     letter: "C",
                     val: disc.C,
-                    target: ALVOS_CARGO.C,
+                    target: dynamicTargets.C,
                     color: "text-[#3B82F6]",
                   },
                 ].map((item) => (
@@ -578,28 +636,36 @@ export default function RelatorioPsicometricoPage() {
               ))}
             </div>
 
-            <div className="bg-[#FEF2F2] border border-red-100 rounded-2xl p-6 sm:p-8 relative overflow-hidden">
-              <div className="absolute -right-4 -top-4 sm:-right-8 sm:-top-8 text-red-500/5 pointer-events-none">
+            <div
+              className={`${infoPerfil.bg} border ${infoPerfil.border} rounded-2xl p-6 sm:p-8 relative overflow-hidden`}
+            >
+              <div
+                className={`absolute -right-4 -top-4 sm:-right-8 sm:-top-8 ${infoPerfil.cor} opacity-5 pointer-events-none`}
+              >
                 <span className="material-symbols-outlined text-[100px] sm:text-[160px]">
-                  error_outline
+                  {infoPerfil.icon}
                 </span>
               </div>
               <div className="relative z-10 max-w-3xl">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="size-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600">
+                  <div
+                    className={`size-10 rounded-xl ${infoPerfil.bg} border ${infoPerfil.border} flex items-center justify-center ${infoPerfil.cor}`}
+                  >
                     <span className="material-symbols-outlined font-bold">
                       release_alert
                     </span>
                   </div>
-                  <h4 className="text-red-800 text-lg sm:text-xl font-black uppercase tracking-tight">
+                  <h4
+                    className={`${infoPerfil.cor} text-lg sm:text-xl font-black uppercase tracking-tight`}
+                  >
                     Sob Pressão
                   </h4>
                 </div>
-                <p className="text-red-900/90 text-sm leading-relaxed font-medium">
+                <p
+                  className={`${infoPerfil.cor} brightness-50 text-sm leading-relaxed font-medium`}
+                >
                   Sob condições de estresse elevado,{" "}
-                  {colab.nm_completo.split(" ")[0]} tende a intensificar sua
-                  Dominância. Isso pode resultar em comunicação ríspida e falta
-                  de atenção aos detalhes do processo.
+                  {colab.nm_completo.split(" ")[0]} {infoPerfil.pressao}
                 </p>
               </div>
             </div>
