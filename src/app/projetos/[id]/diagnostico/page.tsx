@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 const BLOCOS_QUANTITATIVOS = [
   {
     id: "B1",
-    titulo: "Estrutura Organizacional e Cargos",
+    titulo: "Estrutura Organizacional",
     consultoriaSugerida: "Descrição e Análise de Cargos",
     perguntas: [
       "A empresa possui descrição formal de todos os cargos?",
@@ -156,17 +156,14 @@ export default function DiagnosticoInicialPage() {
           const empresa = Array.isArray(projData.EMPRESAS)
             ? projData.EMPRESAS[0]
             : projData.EMPRESAS;
-          setEmpresaNome(empresa?.nm_fantasia || "Empresa");
+          setEmpresaNome(empresa?.nm_fantasia || "Empresa Não Identificada");
         }
 
-        // Busca dados na tabela INDICADORES_RH
         const { data: indData } = await supabase
           .from("INDICADORES_RH")
           .select("*")
           .eq("cd_projeto", projetoId)
           .maybeSingle();
-
-        console.log(projetoId);
 
         if (indData) {
           setRegistroExiste(true);
@@ -174,7 +171,6 @@ export default function DiagnosticoInicialPage() {
             let diag = indData.js_diagnostico;
             if (typeof diag === "string") diag = JSON.parse(diag);
 
-            // Preenche os estados com o que veio do banco
             setRespostasQuant(diag.quantitativas || {});
             setRespostasQuali(diag.qualitativas || {});
           }
@@ -223,35 +219,40 @@ export default function DiagnosticoInicialPage() {
           (pilarScores["B6"] || 0)) /
           3,
       );
+
     const ranking = BLOCOS_QUANTITATIVOS.map((b) => ({
       id: b.id,
       titulo: b.titulo,
       consultoria: b.consultoriaSugerida,
       score: pilarScores[b.id] || 0,
-    })).sort((a, b) => a.score - b.score);
+    })).sort((a, b) => b.score - a.score); // Ordena do maior para o menor
 
     let categoria = {
       label: "Gestão Informal e Reativa",
       color: "text-red-600 bg-red-50",
       icon: "warning",
+      desc: "Ausência de processos estruturados de RH. Alta dependência do dono. Baixa previsibilidade de resultados. Forte exposição a riscos legais e financeiros.",
     };
     if (indiceGeral > 25)
       categoria = {
         label: "Gestão em Estruturação",
         color: "text-orange-600 bg-orange-50",
         icon: "construction",
+        desc: "Processos iniciados, mas ainda fragmentados. Risco moderado.",
       };
     if (indiceGeral > 50)
       categoria = {
         label: "Gestão Estruturada",
         color: "text-yellow-600 bg-yellow-50",
         icon: "domain_verification",
+        desc: "Práticas de RH estabelecidas. Foco em otimização.",
       };
     if (indiceGeral > 75)
       categoria = {
         label: "Gestão Estratégica",
         color: "text-green-600 bg-green-50",
         icon: "diamond",
+        desc: "RH atua como parceiro estratégico do negócio.",
       };
 
     return {
@@ -296,69 +297,266 @@ export default function DiagnosticoInicialPage() {
     }
   };
 
+  // --- GERADOR DE RELATÓRIO ROBUSTO ---
   const handlePrint = () => {
     const janela = window.open("", "", "width=1200,height=900");
     if (!janela) return;
 
+    // Lógicas de Velocímetro Dinâmicas
+    const matLabel =
+      resultados.indiceGeral < 25
+        ? "🔴 Extremamente baixa"
+        : resultados.indiceGeral < 50
+          ? "🟠 Baixa"
+          : "🟢 Estruturada";
+    const rtLabel =
+      resultados.riscoTrabalhista > 75
+        ? "🔴 Extremamente alto"
+        : resultados.riscoTrabalhista > 40
+          ? "🟠 Alto"
+          : "🟢 Baixo";
+    const rtoLabel =
+      resultados.riscoTurnover > 75
+        ? "🔴 Extremamente alto"
+        : resultados.riscoTurnover > 40
+          ? "🟠 Alto"
+          : "🟢 Baixo";
+
+    // Agrupamento para "Análise Profunda"
+    const rankingInvertido = [...resultados.ranking].sort(
+      (a, b) => a.score - b.score,
+    );
+    const criticos = rankingInvertido.filter((r) => r.score <= 10);
+    const mtBaixos = rankingInvertido.filter(
+      (r) => r.score > 10 && r.score <= 20,
+    );
+    const baixos = rankingInvertido.filter(
+      (r) => r.score > 20 && r.score <= 30,
+    );
+
+    const formatGroup = (group: any[], color: string, explanation: string) => {
+      if (group.length === 0) return "";
+      return `
+        <div style="margin-bottom: 15px;">
+          <h4 style="color: ${color}; font-weight: 900; font-size: 14px; margin-bottom: 8px;">${color === "#ef4444" ? "🔴 Críticos (0% a 10%)" : color === "#f97316" ? "🟠 Muito baixos (11% a 20%)" : "🟡 Baixos (21% a 30%)"}</h4>
+          <ul style="list-style: none; padding: 0; margin: 0 0 8px 0; font-size: 13px; font-weight: bold; color: #334155;">
+            ${group.map((g) => `<li style="margin-bottom: 4px;">• ${g.titulo} (${g.score}%)</li>`).join("")}
+          </ul>
+          <p style="margin: 0; font-size: 13px; color: #64748b; font-style: italic; border-left: 2px solid ${color}; padding-left: 8px;">👉 ${explanation}</p>
+        </div>
+      `;
+    };
+
+    // Barra Visual do Ranking
     const rankingHtml = resultados.ranking
       .map(
         (item) => `
-      <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee;">
-        <span style="font-size: 14px;">${item.titulo}</span>
-        <span style="font-weight: bold; color: ${item.score < 50 ? "#dc2626" : "#16a34a"};">${item.score}%</span>
-      </div>`,
-      )
-      .join("");
-
-    const qualitativoHtml = BLOCO_QUALITATIVO.perguntas
-      .map(
-        (p, i) => `
-      <div style="margin-bottom: 15px; page-break-inside: avoid;">
-        <p style="font-size: 11px; font-weight: bold; color: #64748b; margin-bottom: 4px; text-transform: uppercase;">${p}</p>
-        <p style="font-size: 14px; color: #1e293b; background: #f8fafc; padding: 10px; border-radius: 8px; border-left: 4px solid #064384;">
-          ${respostasQuali[`Q_${i}`] || "Não informado."}
-        </p>
-      </div>`,
+      <div style="margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 4px; color: #334155;">
+          <span>${item.titulo}</span>
+          <span>${item.score}%</span>
+        </div>
+        <div style="height: 14px; background: #e2e8f0; border-radius: 4px; overflow: hidden;">
+          <div style="height: 100%; width: ${item.score}%; background: ${item.score <= 20 ? "#ef4444" : item.score <= 50 ? "#f59e0b" : "#22c55e"};"></div>
+        </div>
+      </div>
+    `,
       )
       .join("");
 
     janela.document.write(`
       <html>
         <head>
-          <title>Diagnóstico RH - ${empresaNome}</title>
+          <title>Diagnóstico Gestão de Pessoas - ${empresaNome}</title>
+          <script src="https://cdn.tailwindcss.com"></script>
           <style>
-            body { font-family: sans-serif; color: #334155; padding: 40px; line-height: 1.5; }
-            .header { border-bottom: 4px solid #064384; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
-            .title { font-size: 24px; font-weight: 900; color: #064384; margin: 0; text-transform: uppercase; }
-            .grid { display: grid; grid-template-cols: repeat(3, 1fr); gap: 20px; margin-bottom: 30px; }
-            .card { background: #f1f5f9; padding: 20px; border-radius: 12px; text-align: center; }
-            .card-val { font-size: 28px; font-weight: 900; color: #064384; display: block; }
-            .card-lab { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; }
-            .status-banner { background: #064384; color: white; padding: 20px; border-radius: 12px; margin-bottom: 30px; display: flex; justify-content: space-between; }
-            .section-title { font-size: 16px; font-weight: bold; color: #064384; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin: 30px 0 15px 0; text-transform: uppercase; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+            body { font-family: 'Inter', sans-serif; color: #1e293b; background: #fff; line-height: 1.6; }
+            @media print {
+              @page { margin: 15mm; size: A4; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+              .page-break { page-break-before: always; }
+            }
+            .section-title { font-size: 18px; font-weight: 900; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin: 30px 0 20px 0; display: flex; align-items: center; gap: 8px;}
+            .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+            .box-critical { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+            .highlight-text { font-size: 15px; font-weight: 800; color: #0f172a; }
+            .label-text { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px; }
+            .metric-big { font-size: 36px; font-weight: 900; line-height: 1; margin: 10px 0; }
           </style>
         </head>
-        <body>
-          <div class="header">
-            <div><h1 class="title">Relatório de Diagnóstico RH</h1><span>Maturidade de Gestão 360º</span></div>
-            <div style="text-align: right;"><strong>${empresaNome}</strong><br><small>${new Date().toLocaleDateString("pt-BR")}</small></div>
+        <body class="p-8">
+          
+          <div style="text-align: center; margin-bottom: 40px;">
+            <h1 style="font-size: 28px; font-weight: 900; color: #0f172a; margin: 0; text-transform: uppercase;">📊 DIAGNÓSTICO DE GESTÃO DE PESSOAS</h1>
+            <p style="font-size: 16px; font-weight: 800; color: #475569; margin-top: 5px;">Empresa: ${empresaNome}</p>
           </div>
-          <div class="grid">
-            <div class="card"><span class="card-lab">Maturidade Geral</span><span class="card-val">${resultados.indiceGeral}%</span></div>
-            <div class="card" style="background:#fef2f2"><span class="card-lab" style="color:#ef4444">Risco Trabalhista</span><span class="card-val" style="color:#dc2626">${resultados.riscoTrabalhista}%</span></div>
-            <div class="card" style="background:#fff7ed"><span class="card-lab" style="color:#f97316">Risco Turnover</span><span class="card-val" style="color:#ea580c">${resultados.riscoTurnover}%</span></div>
+
+          <h2 class="section-title">📈 1. VISÃO GERAL DOS INDICADORES</h2>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="box">
+              <span class="label-text">🔢 Indicadores Principais</span>
+              <div style="margin-top: 15px;">
+                <p style="margin: 0; font-weight: 800; font-size: 14px;">Maturidade Geral: <span style="color: #064384; font-size: 18px;">${resultados.indiceGeral}%</span></p>
+                <p style="margin: 8px 0; font-weight: 800; font-size: 14px;">Risco Trabalhista: <span style="color: #ef4444; font-size: 18px;">${resultados.riscoTrabalhista}%</span></p>
+                <p style="margin: 0; font-weight: 800; font-size: 14px;">Risco de Turnover: <span style="color: #ef4444; font-size: 18px;">${resultados.riscoTurnover}%</span></p>
+              </div>
+            </div>
+            
+            <div class="box">
+              <span class="label-text">📊 Interpretação (Gráfico Mental Velocímetro)</span>
+              <div style="margin-top: 15px; font-weight: bold; font-size: 14px; line-height: 1.8;">
+                <p style="margin: 0;">Maturidade: ${matLabel}</p>
+                <p style="margin: 0;">Risco Trabalhista: ${rtLabel}</p>
+                <p style="margin: 0;">Turnover: ${rtoLabel}</p>
+              </div>
+            </div>
           </div>
-          <div class="status-banner">
-            <div><small>Cenário Atual:</small><br><strong>${resultados.categoria.label}</strong></div>
-            <div style="text-align: right;"><small>Prioridade Estratégica:</small><br><strong>${resultados.ranking[0].consultoria}</strong></div>
+
+          <div class="box-critical" style="border-left: 6px solid #ef4444;">
+            <span class="label-text" style="color: #991b1b;">🧠 Análise Estratégica Geral</span>
+            <p style="margin: 10px 0 5px 0; font-size: 16px; font-weight: 800; color: #7f1d1d;">A empresa se encontra em um nível de: ${resultados.categoria.label.toUpperCase()}</p>
+            <p style="margin: 0; font-size: 13px; font-weight: 600; color: #991b1b;">Isso indica: ${resultados.categoria.desc}</p>
           </div>
-          <h2 class="section-title">Desempenho por Pilar</h2>
-          ${rankingHtml}
-          <h2 class="section-title">Análise Qualitativa</h2>
-          ${qualitativoHtml}
-          <script>window.onload = () => { window.print(); window.close(); };</script>
+
+          <h2 class="section-title">📉 2. ANÁLISE POR PILAR</h2>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+            <div>
+              <span class="label-text" style="display: block; margin-bottom: 15px;">📈 Desempenho por Área (Ranking)</span>
+              ${rankingHtml}
+            </div>
+            <div>
+              <span class="label-text" style="display: block; margin-bottom: 15px;">🧠 Análise Profunda dos Gaps</span>
+              ${formatGroup(criticos, "#ef4444", "A empresa praticamente não tem processos nestas áreas. Risco extremo.")}
+              ${formatGroup(mtBaixos, "#f97316", "Contrata e organiza de forma muito improvisada e perigosa.")}
+              ${formatGroup(baixos, "#eab308", "Existem sinais de tentativa, mas sem estrutura ou padronização.")}
+              ${criticos.length === 0 && mtBaixos.length === 0 ? '<p style="font-weight:bold; color:#16a34a;">Sua empresa não possui pilares em nível crítico extremo.</p>' : ""}
+            </div>
+          </div>
+
+          <div class="page-break"></div>
+          <h2 class="section-title">🧠 3. ANÁLISE QUALITATIVA (VISÃO DO EMPRESÁRIO)</h2>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="box" style="background: #eff6ff; border-color: #bfdbfe;">
+              <p class="label-text" style="color: #1e3a8a;">💬 Principais Dores Relatadas</p>
+              <div style="margin-top: 15px;">
+                <p style="font-size: 13px; font-weight: bold; color: #475569; margin: 0;">🔥 Dor central:</p>
+                <p style="font-size: 14px; font-weight: 900; color: #1e3a8a; margin: 2px 0 15px 0;">👉 "${respostasQuali["Q_0"] || "Não relatada"}"</p>
+                
+                <p style="font-size: 13px; font-weight: bold; color: #475569; margin: 0;">💥 Desgaste principal:</p>
+                <p style="font-size: 14px; font-weight: 900; color: #1e3a8a; margin: 2px 0 15px 0;">👉 "${respostasQuali["Q_1"] || "Não relatado"}"</p>
+                
+                <p style="font-size: 13px; font-weight: bold; color: #475569; margin: 0;">🎯 Problema prioritário:</p>
+                <p style="font-size: 14px; font-weight: 900; color: #1e3a8a; margin: 2px 0 0 0;">👉 "${respostasQuali["Q_2"] || "Não definido"}"</p>
+              </div>
+            </div>
+
+            <div class="box-critical">
+              <p class="label-text" style="color: #991b1b;">⚠️ Diagnóstico Oculto (Insight do Consultor)</p>
+              <div style="margin-top: 15px; font-size: 14px; font-weight: bold; color: #7f1d1d;">
+                <p style="margin: 0 0 5px 0;">O empresário acredita que:</p>
+                <p style="font-weight: 900; font-size: 16px; margin: 0 0 15px 0;">👉 "${respostasQuali["Q_4"] || "A remuneração é adequada"}"</p>
+                
+                <p style="margin: 0 0 5px 0;">Mas ao mesmo tempo a equipe apresenta problemas.</p>
+                
+                <div style="background: #fef2f2; padding: 10px; border-left: 4px solid #ef4444; margin-top: 15px;">
+                  <p style="margin: 0; color: #991b1b;">💡 <b>Isso indica:</b> O problema não é só financeiro. Há uma clara falta de gestão, reconhecimento e liderança estruturada no dia a dia.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+              <h2 class="section-title">🚨 4. DIAGNÓSTICO FINAL</h2>
+              <div class="box">
+                <p style="font-weight: 800; font-size: 14px; margin: 0 0 10px 0;">A empresa apresenta um cenário de:</p>
+                <p style="font-weight: 900; font-size: 18px; color: #ef4444; margin: 0 0 15px 0;">🔴 DESORGANIZAÇÃO ESTRUTURAL</p>
+                <ul style="font-size: 13px; font-weight: bold; color: #475569; padding-left: 20px; margin: 0;">
+                  <li>Falta de liderança estruturada</li>
+                  <li>Ausência de processos</li>
+                  <li>Falta de clareza de papéis</li>
+                </ul>
+              </div>
+            </div>
+            <div>
+              <h2 class="section-title">🎯 5. CAUSA RAIZ</h2>
+              <div class="box" style="background: #1e293b; color: white; border: none; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                <p style="font-size: 16px; font-weight: 600; opacity: 0.9; margin: 0 0 10px 0;">O problema relatado não é a causa real.</p>
+                <p style="font-size: 22px; font-weight: 900; color: #fbbf24; margin: 0; line-height: 1.3;">👉 É a ausência de um Sistema Integrado de Gestão de Pessoas.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="page-break"></div>
+          <h2 class="section-title">🔧 6. PRIORIDADE ESTRATÉGICA (PLANO DE AÇÃO)</h2>
+          
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px;">
+            <p style="font-size: 18px; font-weight: 900; color: #064384; margin: 0 0 20px 0; text-transform: uppercase;">🚀 Ação 1: Implantar GESTÃO 360°</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+              <div style="display: flex; gap: 15px; align-items: flex-start;">
+                <div style="background: #0f172a; color: white; font-weight: 900; padding: 5px 12px; border-radius: 6px;">1</div>
+                <div>
+                  <p style="font-weight: 800; font-size: 15px; margin: 0; color: #0f172a;">Estrutura Básica (Urgente)</p>
+                  <p style="font-size: 13px; color: #64748b; margin: 2px 0 0 0;">Descrição de cargos, organograma e clareza de responsabilidades operacionais.</p>
+                </div>
+              </div>
+              <div style="display: flex; gap: 15px; align-items: flex-start;">
+                <div style="background: #334155; color: white; font-weight: 900; padding: 5px 12px; border-radius: 6px;">2</div>
+                <div>
+                  <p style="font-weight: 800; font-size: 15px; margin: 0; color: #0f172a;">Liderança e Desempenho</p>
+                  <p style="font-size: 13px; color: #64748b; margin: 2px 0 0 0;">Metas claras por função, feedback estruturado e rotina de acompanhamento 1:1.</p>
+                </div>
+              </div>
+              <div style="display: flex; gap: 15px; align-items: flex-start;">
+                <div style="background: #475569; color: white; font-weight: 900; padding: 5px 12px; border-radius: 6px;">3</div>
+                <div>
+                  <p style="font-weight: 800; font-size: 15px; margin: 0; color: #0f172a;">Estruturação do RH (Atração e Retenção)</p>
+                  <p style="font-size: 13px; color: #64748b; margin: 2px 0 0 0;">Recrutamento organizado, Onboarding técnico e Treinamentos mapeados.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px;">
+            <div>
+              <h2 class="section-title">📊 7. LEITURA EXECUTIVA</h2>
+              <div class="box" style="font-size: 14px; font-weight: 600; color: #334155; font-style: italic; line-height: 1.6; border-left: 4px solid #064384;">
+                "Hoje sua empresa está operando com apenas ${resultados.indiceGeral}% de maturidade em gestão de pessoas. Isso significa que praticamente não existe um sistema estruturado de gestão, o que explica diretamente a desmotivação da equipe, o desgaste na liderança e o risco alto de rotatividade.<br/><br/>
+                O principal problema não é apenas a motivação, mas sim a ausência de processos claros de gestão, acompanhamento e desenvolvimento da equipe."
+              </div>
+            </div>
+            
+            <div>
+              <h2 class="section-title">🔥 8. OPORTUNIDADE DE CONSULTORIA</h2>
+              <div class="box" style="background: #fffbeb; border-color: #fde68a;">
+                <p style="font-size: 13px; font-weight: 800; color: #d97706; margin: 0 0 15px 0; text-transform: uppercase;">Módulos de Implantação Recomendados:</p>
+                <ul style="list-style: none; padding: 0; margin: 0; font-size: 15px; font-weight: 900; color: #92400e; line-height: 2;">
+                  <li>👉 Implantação de Gestão de Pessoas 360º</li>
+                  <li>👉 Estruturação Organizacional (Cargos)</li>
+                  <li>👉 Sistema de Avaliação de Desempenho</li>
+                  <li>👉 Programa de Liderança e Engajamento</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top: 50px; text-align: center; border-top: 2px solid #e2e8f0; padding-top: 20px;">
+            <p style="font-size: 10px; color: #94a3b8; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Gerado pelo Sistema Integrado de Diagnóstico Estratégico.</p>
+          </div>
+
+          <script>
+            window.onload = () => { 
+              setTimeout(() => { window.print(); window.close(); }, 800); 
+            };
+          </script>
         </body>
-      </html>`);
+      </html>
+    `);
     janela.document.close();
   };
 
@@ -385,11 +583,14 @@ export default function DiagnosticoInicialPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={handlePrint}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-all"
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-all active:scale-95"
           >
-            <span className="material-symbols-outlined text-[18px]">print</span>
-            PDF
+            <span className="material-symbols-outlined text-[18px]">
+              workspace_premium
+            </span>
+            Gerar Relatório Executivo
           </button>
+
           <button
             onClick={handleSave}
             disabled={saving}
@@ -398,7 +599,7 @@ export default function DiagnosticoInicialPage() {
             <span className="material-symbols-outlined text-[18px]">
               {saving ? "sync" : "save"}
             </span>
-            {saving ? "Salvando..." : "Salvar"}
+            {saving ? "Salvando..." : "Salvar Dados"}
           </button>
         </div>
       </header>
