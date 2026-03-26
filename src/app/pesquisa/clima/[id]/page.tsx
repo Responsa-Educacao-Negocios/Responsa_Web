@@ -123,7 +123,7 @@ export default function PesquisaClimaPage() {
           .from("PROJETOS")
           .select("EMPRESAS(nm_fantasia)")
           .eq("cd_projeto", projetoId)
-          .single();
+          .maybeSingle();
 
         if (proj) {
           const empresa = Array.isArray(proj.EMPRESAS)
