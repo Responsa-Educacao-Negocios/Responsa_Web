@@ -15,7 +15,7 @@ const TOOLS_DATA = [
     icon: "assignment",
     description:
       "Crie descrições detalhadas e alinhadas ao mercado utilizando nossa base de dados de competências e responsabilidades.",
-    link: "#",
+    link: "/ferramentas/gerador-cargos", // Rota de exemplo
   },
   {
     id: 2,
@@ -25,7 +25,7 @@ const TOOLS_DATA = [
     icon: "calculate",
     description:
       "Analise a rotatividade da empresa por setor, custo de reposição e identifique gargalos críticos de retenção.",
-    link: "#",
+    link: "/ferramentas/turnover", // Rota de exemplo
   },
   {
     id: 3,
@@ -35,7 +35,7 @@ const TOOLS_DATA = [
     icon: "poll",
     description:
       "Configure pesquisas de clima organizacional, eNPS e satisfação interna com envio automatizado e relatórios em tempo real.",
-    link: "#",
+    link: "/ferramentas/pesquisas", // Rota de exemplo
   },
   {
     id: 4,
@@ -45,17 +45,27 @@ const TOOLS_DATA = [
     icon: "psychology_alt",
     description:
       "Aplique e gerencie avaliações de perfil comportamental para times e lideranças, com cruzamento de dados para fit cultural.",
-    link: "#",
+    link: "/ferramentas/disc", // Rota de exemplo
   },
   {
     id: 5,
+    category: "Inovação & IA",
+    iconCategory: "smart_toy",
+    title: "Maturidade em IA (Marketing)",
+    icon: "robot_2",
+    description:
+      "Diagnóstico interativo para avaliar o nível de uso de Inteligência Artificial no negócio e gerar laudos executivos instantâneos.",
+    link: "/ferramentas/ia-marketing", // A nova rota que acabamos de criar!
+  },
+  {
+    id: 6,
     category: "Desenvolvimento",
     iconCategory: "school",
     title: "Biblioteca de Competências",
     icon: "library_books",
     description:
       "Acesso completo a um repositório de competências técnicas e comportamentais com indicadores de desempenho sugeridos.",
-    link: "#",
+    link: "/ferramentas/competencias", // Rota de exemplo
   },
 ];
 
@@ -106,7 +116,7 @@ export default function FerramentasPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light flex items-center justify-center flex-col gap-4 text-primary">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center flex-col gap-4 text-[#064384]">
         <span className="material-symbols-outlined animate-spin text-4xl">
           progress_activity
         </span>
@@ -116,22 +126,22 @@ export default function FerramentasPage() {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-background-light font-display text-text-main antialiased relative">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-800 antialiased relative">
       <Sidebar onLogout={handleLogout} />
 
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* HEADER ESPECÍFICO */}
         <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-8 shadow-sm flex-shrink-0 z-10">
-          <h2 className="text-xl font-bold text-primary tracking-tight">
-            Ferramentas de Consultoria
+          <h2 className="text-xl font-black text-[#064384] tracking-tight">
+            Hub de Ferramentas
           </h2>
 
-          <div className="flex w-full max-w-md items-center gap-2 rounded-lg bg-slate-100 px-3 py-2 border border-transparent focus-within:border-primary/30 focus-within:bg-white transition-all">
+          <div className="flex w-full max-w-md items-center gap-2 rounded-xl bg-slate-100 px-3 py-2 border border-transparent focus-within:border-[#064384]/30 focus-within:bg-white transition-all">
             <span className="material-symbols-outlined text-slate-400">
               search
             </span>
             <input
-              className="w-full bg-transparent text-sm text-text-main placeholder-slate-400 focus:outline-none"
+              className="w-full bg-transparent text-sm text-slate-700 placeholder-slate-400 focus:outline-none"
               placeholder="Buscar ferramenta específica..."
               type="text"
               value={searchTerm}
@@ -142,7 +152,7 @@ export default function FerramentasPage() {
           <div className="flex items-center gap-4">
             <button className="relative rounded-full p-2 text-slate-500 hover:bg-slate-100 transition-colors focus:outline-none">
               <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent ring-2 ring-white"></span>
+              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-[#FF8323] ring-2 ring-white"></span>
             </button>
             <button className="rounded-full p-2 text-slate-500 hover:bg-slate-100 transition-colors focus:outline-none">
               <span className="material-symbols-outlined">help_outline</span>
@@ -159,60 +169,73 @@ export default function FerramentasPage() {
             </div>
           ) : (
             Object.entries(groupedTools).map(([categoryName, categoryData]) => (
-              <section key={categoryName} className="space-y-6">
-                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                  <span className="material-symbols-outlined text-primary">
-                    {categoryData.icon}
-                  </span>
-                  <h3 className="text-lg font-bold text-graphite">
+              <section
+                key={categoryName}
+                className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500"
+              >
+                {/* Título da Categoria */}
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+                  <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#064384] flex items-center justify-center">
+                    <span
+                      className="material-symbols-outlined text-[20px]"
+                      style={{ fontVariationSettings: "'FILL' 1" }}
+                    >
+                      {categoryData.icon}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-widest">
                     {categoryName}
                   </h3>
                 </div>
 
+                {/* Grid de Cards da Categoria */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {categoryData.tools.map((tool) => (
                     <div
                       key={tool.id}
-                      className="group bg-white rounded-xl shadow-sm border border-slate-100 p-6 flex flex-col justify-between hover:shadow-md transition-all"
+                      className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md hover:border-[#064384]/30 transition-all duration-300"
                     >
-                      <div className="mb-4">
-                        <div className="h-12 w-12 rounded-lg bg-blue-50 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-colors">
-                          <span className="material-symbols-outlined text-3xl">
+                      <div className="mb-6 flex-grow">
+                        <div className="h-14 w-14 rounded-xl bg-blue-50 text-[#064384] flex items-center justify-center mb-5 group-hover:bg-[#064384] group-hover:text-white group-hover:scale-110 transition-all duration-300">
+                          <span
+                            className="material-symbols-outlined text-3xl"
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
                             {tool.icon}
                           </span>
                         </div>
-                        <h4 className="text-lg font-bold text-graphite mb-2">
+                        <h4 className="text-lg font-black text-slate-800 mb-2 group-hover:text-[#064384] transition-colors">
                           {tool.title}
                         </h4>
-                        <p className="text-sm text-slate-500 leading-relaxed">
+                        <p className="text-sm text-slate-500 font-medium leading-relaxed">
                           {tool.description}
                         </p>
                       </div>
 
                       <button
                         onClick={() => router.push(tool.link)}
-                        className="w-full mt-4 bg-accent hover:bg-accent-dark text-white font-semibold py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 group/btn focus:outline-none"
+                        className="w-full mt-auto bg-slate-50 hover:bg-[#064384] text-[#064384] hover:text-white font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 group/btn focus:outline-none border border-slate-200 hover:border-[#064384]"
                       >
                         Abrir Ferramenta
-                        <span className="material-symbols-outlined text-sm transition-transform group-hover/btn:translate-x-1">
+                        <span className="material-symbols-outlined text-[18px] transition-transform group-hover/btn:translate-x-1">
                           arrow_forward
                         </span>
                       </button>
                     </div>
                   ))}
 
-                  {/* Card Fixo de Em Breve apenas na categoria Desenvolvimento */}
+                  {/* Card Fixo de 'Em Breve' (Opcional, apenas em Desenvolvimento) */}
                   {categoryName === "Desenvolvimento" && !searchTerm && (
-                    <div className="group bg-white/50 border border-dashed border-slate-300 rounded-xl p-6 flex flex-col items-center justify-center text-center opacity-60">
-                      <div className="h-12 w-12 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center mb-4">
+                    <div className="bg-slate-50/50 border border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center opacity-70">
+                      <div className="h-12 w-12 rounded-xl bg-slate-200 text-slate-400 flex items-center justify-center mb-4">
                         <span className="material-symbols-outlined text-3xl">
                           add
                         </span>
                       </div>
-                      <h4 className="text-sm font-semibold text-slate-500">
+                      <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest">
                         Mais ferramentas em breve
                       </h4>
-                      <p className="text-xs text-slate-400 mt-1 italic">
+                      <p className="text-xs font-bold text-slate-400 mt-2">
                         PDI Automatizado & 360 Graus
                       </p>
                     </div>
