@@ -91,6 +91,15 @@ const templatesList = [
     slug: "regulamento-interno",
     color: "bg-slate-50 text-slate-600 border-slate-200",
   },
+  {
+    id: 13,
+    category: "Desenvolvimento",
+    title: "Inventário de Gestão do Tempo",
+    desc: "Avaliação Rosa Krausz para identificar os desperdiçadores de tempo e gerar PDI.",
+    arquivo: "",
+    slug: "gestao-tempo", // Este slug fará com que o botão "Preencher Online" apareça
+    color: "bg-purple-50 text-purple-600 border-purple-200",
+  },
 ];
 
 export default function TemplatesPage() {
