@@ -58,9 +58,10 @@ export default function GestaoTempoProjetoPage() {
         .maybeSingle();
 
       if (projData) {
-        const nomeEmp = Array.isArray(projData.EMPRESAS)
-          ? projData.EMPRESAS[0]?.nm_fantasia
-          : projData.EMPRESAS?.nm_fantasia;
+        const empresa = Array.isArray(projData.EMPRESAS)
+          ? projData.EMPRESAS[0]
+          : (projData.EMPRESAS as any);
+        const nomeEmp = empresa?.nm_fantasia;
         setEmpresaNome(nomeEmp || "Empresa não informada");
       }
 
