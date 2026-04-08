@@ -86,7 +86,7 @@ export default function PesquisaDiscPage() {
         .eq("cd_funcionario", params.id)
         .maybeSingle();
 
-      if (error) {
+      if (error || !data) {
         console.error("Erro ao buscar funcionário:", error);
         setErrorNotFound(true);
         return;
