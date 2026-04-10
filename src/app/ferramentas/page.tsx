@@ -67,6 +67,27 @@ const TOOLS_DATA = [
       "Acesso completo a um repositório de competências técnicas e comportamentais com indicadores de desempenho sugeridos.",
     link: "/ferramentas/competencias", // Rota de exemplo
   },
+  // NOVA FERRAMENTA ADICIONADA AQUI 👇
+  {
+    id: 7,
+    category: "Desenvolvimento",
+    iconCategory: "school",
+    title: "Inventário de Gestão do Tempo",
+    icon: "update",
+    description:
+      "Avaliação Rosa Krausz de 96 pontos para identificar os desperdiçadores de tempo e gerar planos de desenvolvimento.",
+    link: "/ferramentas/gestao-tempo", // Rota da tela de admin que criamos
+  },
+  {
+    id: 8,
+    category: "Diagnóstico & Clima",
+    iconCategory: "analytics",
+    title: "Riscos Psicossociais (NR-1)",
+    icon: "health_and_safety",
+    description:
+      "Mapeamento completo de 60 pontos exigido pela NR-1, avaliando maturidade organizacional, liderança e gerando planos de ação.",
+    link: "/ferramentas/nr1",
+  },
 ];
 
 export default function FerramentasPage() {
