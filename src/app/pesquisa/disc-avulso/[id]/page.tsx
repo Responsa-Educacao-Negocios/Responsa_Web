@@ -131,13 +131,15 @@ export default function PesquisaDiscAvulsoPage() {
     const novoStatus = isLastStep ? "CONCLUIDO" : "EM_ANDAMENTO";
 
     try {
-      await supabase
+      const { error } = await supabase
         .from("AVALIACOES_DISC_AVULSO")
         .update({
           js_respostas: answers,
-          tp_status: novoStatus, // Salva usando o Enum corretamente
+          tp_status: novoStatus,
         })
         .eq("cd_avaliacao", params.id);
+
+      if (error) throw error;
 
       if (currentStep === 24) {
         setShowTransition(true);

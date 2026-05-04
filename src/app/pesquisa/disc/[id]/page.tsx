@@ -128,17 +128,16 @@ export default function PesquisaDiscPage() {
     try {
       const isLastStep = currentStep === discQuestions.length - 1;
 
-      // 1. Payload de atualização
-      const payload: any = {
-        js_respostas: answers,
-        tp_status: isLastStep ? "CONCLUIDO" : "EM_ANDAMENTO",
-      };
-
-      // 2. SALVAMENTO NA TABELA DE AVALIAÇÕES (Onde o Dashboard lê)
+      // Salva respostas brutas em FUNCIONARIOS (mesma tabela que o useEffect lê)
       const { error } = await supabase
-        .from("AVALIACOES_DISC")
-        .update(payload)
-        .eq("cd_funcionario", params.id); // Certifique-se que o ID no link é do funcionário
+        .from("FUNCIONARIOS")
+        .update({
+          js_pontuacao_disc: {
+            respostas_brutas: answers,
+            status: isLastStep ? "CONCLUIDO" : "EM_ANDAMENTO",
+          },
+        })
+        .eq("cd_funcionario", params.id);
 
       if (error) throw error;
 
