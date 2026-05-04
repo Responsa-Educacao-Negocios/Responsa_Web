@@ -126,26 +126,36 @@ export default function PesquisaDiscPage() {
     setIsSaving(true);
 
     try {
-      await supabase
-        .from("FUNCIONARIOS")
-        .update({
-          js_pontuacao_disc: {
-            ...(funcionario.js_pontuacao_disc || {}),
-            respostas_brutas: answers,
-          },
-        })
-        .eq("cd_funcionario", params.id);
+      const isLastStep = currentStep === discQuestions.length - 1;
 
+      // 1. Payload de atualização
+      const payload: any = {
+        js_respostas: answers,
+        tp_status: isLastStep ? "CONCLUIDO" : "EM_ANDAMENTO",
+      };
+
+      // 2. SALVAMENTO NA TABELA DE AVALIAÇÕES (Onde o Dashboard lê)
+      const { error } = await supabase
+        .from("AVALIACOES_DISC")
+        .update(payload)
+        .eq("cd_funcionario", params.id); // Certifique-se que o ID no link é do funcionário
+
+      if (error) throw error;
+
+      // 3. LOGICA DE NAVEGAÇÃO
       if (currentStep === 24) {
         setShowTransition(true);
-      } else if (currentStep < discQuestions.length - 1) {
+      } else if (!isLastStep) {
         setCurrentStep((curr) => curr + 1);
       } else {
-        alert("Análise finalizada com sucesso!");
+        // SUCESSO ABSOLUTO
         router.push("/sucesso");
       }
     } catch (error) {
-      console.error("Erro ao salvar:", error);
+      console.error("Erro crítico ao gravar progresso:", error);
+      alert(
+        "Erro de conexão. Seu progresso foi salvo localmente, tente clicar em 'Próximo' novamente.",
+      );
     } finally {
       setIsSaving(false);
     }
