@@ -1,13 +1,10 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import dynamic from "next/dynamic";
+import { calcularPontuacaoDisc, derivarPerfilDisc, DiscScores } from "@/lib/disc-utils";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
-
-// Tipagem baseada na sua tabela FUNCIONARIOS
 interface Funcionario {
   cd_funcionario: string;
   nm_completo: string;
@@ -20,8 +17,10 @@ interface Funcionario {
   ds_observacoes?: string | null;
   js_pontuacao_disc: any;
   sn_ativo: boolean;
+  disc_scores: DiscScores | null;
+  disc_status: string | null;
   CARGOS?: {
-    nm_titulo: string; // Verifique se está nm_titulo aqui
+    nm_titulo: string;
     ds_setor: string;
   };
 }
@@ -118,11 +117,24 @@ export default function MapaEquipePage() {
 
       if (funcError) throw funcError;
 
-      // Normaliza o retorno do Supabase para garantir que CARGOS seja um objeto único e não um array
-      const funcionariosFormatados = (funcData || []).map((f: any) => ({
-        ...f,
-        CARGOS: Array.isArray(f.CARGOS) ? f.CARGOS[0] : f.CARGOS,
-      }));
+      const funcionariosFormatados = (funcData || []).map((f: any) => {
+        const discData = f.js_pontuacao_disc;
+        let disc_scores: DiscScores | null = null;
+        let sg_perfil_disc = f.sg_perfil_disc;
+
+        if (discData?.status === "CONCLUIDO" && discData?.respostas_brutas) {
+          disc_scores = calcularPontuacaoDisc(discData.respostas_brutas);
+          if (!sg_perfil_disc) sg_perfil_disc = derivarPerfilDisc(disc_scores);
+        }
+
+        return {
+          ...f,
+          sg_perfil_disc,
+          disc_scores,
+          disc_status: discData?.status || null,
+          CARGOS: Array.isArray(f.CARGOS) ? f.CARGOS[0] : f.CARGOS,
+        };
+      });
 
       setFuncionarios(funcionariosFormatados as Funcionario[]);
     } catch (error: any) {
@@ -224,36 +236,6 @@ export default function MapaEquipePage() {
     return nome.substring(0, 2).toUpperCase();
   };
 
-  // Configuração do Radar Chart (Painel Lateral)
-  const miniRadarOptions: ApexCharts.ApexOptions = {
-    chart: {
-      type: "radar",
-      toolbar: { show: false },
-      fontFamily: "Montserrat, sans-serif",
-      parentHeightOffset: 0,
-    },
-    labels: ["Gestão", "Vendas", "Liderança", "Análise", "Inovação"],
-    stroke: { width: 1, colors: ["#064384"] },
-    fill: { opacity: 0.2, colors: ["#064384"] },
-    markers: {
-      size: 2,
-      colors: ["#fff"],
-      strokeColors: "#064384",
-      strokeWidth: 1,
-    },
-    yaxis: { show: false, min: 0, max: 100 },
-    xaxis: {
-      labels: {
-        style: {
-          colors: Array(5).fill("#64748b"),
-          fontSize: "9px",
-          fontFamily: "Montserrat",
-        },
-      },
-    },
-    tooltip: { enabled: false },
-  };
-
   // ==========================================
   // MOTOR DA ÁRVORE RECURSIVA
   // ==========================================
@@ -279,18 +261,20 @@ export default function MapaEquipePage() {
           </span>
         </div>
 
-        {/* Badge DISC - Ajustado para não sobrepor o texto */}
+        {/* Badge DISC */}
         <div
-          className={`
-          absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-[3px] border-white shadow-md
-          ${getDiscColor(colab.sg_perfil_disc)}
-        `}
-          title={`Perfil DISC: ${colab.sg_perfil_disc}`}
+          className={`absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-[3px] border-white shadow-md ${getDiscColor(colab.sg_perfil_disc)}`}
+          title={`Perfil DISC: ${colab.sg_perfil_disc || "Pendente"}`}
         >
           <span className="text-[10px] font-black text-white drop-shadow-sm">
             {colab.sg_perfil_disc || "?"}
           </span>
         </div>
+
+        {/* Indicador de DISC concluído */}
+        {colab.disc_status === "CONCLUIDO" && (
+          <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-white" title="DISC concluído" />
+        )}
       </div>
 
       {/* Informações do Colaborador */}
@@ -968,32 +952,53 @@ export default function MapaEquipePage() {
                   </div>
                 )}
 
-                {/* Área do Gráfico Radar */}
+                {/* Perfil DISC */}
                 <div className="pt-2">
-                  <div className="flex items-center gap-3 mb-6">
+                  <div className="flex items-center gap-3 mb-4">
                     <div className="h-8 w-8 rounded-lg bg-blue-50 text-primary flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[20px]">
-                        radar
-                      </span>
+                      <span className="material-symbols-outlined text-[20px]">psychology</span>
                     </div>
                     <h4 className="text-sm font-black text-slate-800 uppercase tracking-wider">
-                      Mapeamento de Competências
+                      Perfil DISC
                     </h4>
+                    {selectedColab.disc_status === "CONCLUIDO" && (
+                      <span className="ml-auto text-[9px] font-black text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full uppercase tracking-wider">Concluído</span>
+                    )}
                   </div>
-                  <div className="h-56 w-full flex justify-center -ml-4 items-center bg-slate-50/30 rounded-3xl border border-dashed border-slate-200 p-4">
-                    <Chart
-                      options={miniRadarOptions}
-                      series={[
-                        {
-                          name: "Nota",
-                          data: selectedColab.js_pontuacao_disc
-                            ?.competencias || [85, 70, 90, 65, 80],
-                        },
-                      ]}
-                      type="radar"
-                      height={240}
-                    />
-                  </div>
+
+                  {selectedColab.disc_scores ? (
+                    <div className="space-y-3">
+                      {([
+                        { key: "D", label: "Dominância",   color: "bg-red-500" },
+                        { key: "I", label: "Influência",   color: "bg-yellow-400" },
+                        { key: "S", label: "Estabilidade", color: "bg-green-500" },
+                        { key: "C", label: "Conformidade", color: "bg-blue-500" },
+                      ] as { key: keyof DiscScores; label: string; color: string }[]).map((item) => (
+                        <div key={item.key}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                              {item.key} — {item.label}
+                            </span>
+                            <span className="text-[11px] font-black text-slate-700">
+                              {selectedColab.disc_scores![item.key]}%
+                            </span>
+                          </div>
+                          <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full ${item.color} rounded-full transition-all duration-700`}
+                              style={{ width: `${selectedColab.disc_scores![item.key]}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-6 text-center">
+                      <span className="material-symbols-outlined text-3xl text-slate-300 mb-2 block">pending</span>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Teste Pendente</p>
+                      <p className="text-[11px] text-slate-400 mt-1">Copie o link abaixo para enviar ao colaborador.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Listagem de Detalhes Adicionais */}

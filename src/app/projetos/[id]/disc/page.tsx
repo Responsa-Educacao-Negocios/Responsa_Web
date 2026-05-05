@@ -1,11 +1,11 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
+import { calcularPontuacaoDisc, derivarPerfilDisc } from "@/lib/disc-utils";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Importando o ApexCharts para o gráfico de barras horizontais
 const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 export default function AnaliseDiscEquipePage() {
@@ -19,44 +19,48 @@ export default function AnaliseDiscEquipePage() {
       try {
         setLoading(true);
 
-        // 1. Busca TODAS as avaliações DISC vinculadas diretamente a este PROJETO
-        const { data: avaliacoes, error } = await supabase
-          .from("AVALIACOES_DISC")
-          .select("*")
-          .eq("cd_projeto", params.id);
+        // 1. Descobre a empresa do projeto
+        const { data: projData, error: projError } = await supabase
+          .from("PROJETOS")
+          .select("cd_empresa")
+          .eq("cd_projeto", params.id)
+          .single();
 
-        if (error) throw error;
+        if (projError) throw projError;
 
-        const totalTestes = avaliacoes ? avaliacoes.length : 0;
+        // 2. Busca funcionários da empresa com DISC concluído
+        const { data: funcionarios, error: funcError } = await supabase
+          .from("FUNCIONARIOS")
+          .select("nm_completo, js_pontuacao_disc")
+          .eq("cd_empresa", projData.cd_empresa)
+          .eq("sn_ativo", true);
+
+        if (funcError) throw funcError;
+
+        const concluidos = (funcionarios || []).filter(
+          (f) => f.js_pontuacao_disc?.status === "CONCLUIDO" && f.js_pontuacao_disc?.respostas_brutas,
+        );
+
+        const totalTestes = concluidos.length;
 
         if (totalTestes === 0) {
           setStats(null);
           return;
         }
 
-        // 2. Contagem de Perfis Predominantes
+        // 3. Calcula scores de cada funcionário a partir das respostas brutas
+        const avaliacoes = concluidos.map((f) =>
+          calcularPontuacaoDisc(f.js_pontuacao_disc.respostas_brutas),
+        );
+
+        // 4. Contagem de perfis predominantes
         const contagem = { D: 0, I: 0, S: 0, C: 0 };
-
-        avaliacoes.forEach((a) => {
-          // Pega as notas da avaliação individual e descobre qual é a maior
-          const scores = {
-            D: a.nr_dominancia || 0,
-            I: a.nr_influencia || 0,
-            S: a.nr_estabilidade || 0,
-            C: a.nr_conformidade || 0,
-          };
-
-          // Encontra a letra com a maior pontuação
-          const perfilPrincipal = Object.keys(scores).reduce((x, y) =>
-            scores[x as keyof typeof scores] > scores[y as keyof typeof scores]
-              ? x
-              : y,
-          );
-
-          contagem[perfilPrincipal as keyof typeof contagem]++;
+        avaliacoes.forEach((scores) => {
+          const perfilPrincipal = derivarPerfilDisc(scores)[0] as keyof typeof contagem;
+          contagem[perfilPrincipal]++;
         });
 
-        // 3. Transformando em Porcentagens para o Gráfico de Rosca
+        // 5. Distribuição percentual para o gráfico
         const dist = {
           D: Math.round((contagem.D / totalTestes) * 100),
           I: Math.round((contagem.I / totalTestes) * 100),
@@ -64,25 +68,27 @@ export default function AnaliseDiscEquipePage() {
           C: Math.round((contagem.C / totalTestes) * 100),
         };
 
-        // 4. Achando o perfil predominante da equipe
+        // 6. Média dos scores da equipe (para barras de maturidade)
+        const mediaDI = Math.round(avaliacoes.reduce((s, a) => s + a.D + a.I, 0) / (totalTestes * 2));
+        const mediaCS = Math.round(avaliacoes.reduce((s, a) => s + a.C + a.S, 0) / (totalTestes * 2));
+
+        const maturidade = {
+          autoconhecimento: mediaCS,
+          comunicacao: mediaDI,
+          conflitos: Math.round(avaliacoes.reduce((s, a) => s + a.S, 0) / totalTestes),
+          adaptabilidade: Math.round(avaliacoes.reduce((s, a) => s + a.D + a.I, 0) / (totalTestes * 2)),
+          trabalhoEquipe: Math.round(avaliacoes.reduce((s, a) => s + a.S + a.I, 0) / (totalTestes * 2)),
+        };
+
         const perfilEquipe = Object.keys(dist).reduce((a, b) =>
           dist[a as keyof typeof dist] > dist[b as keyof typeof dist] ? a : b,
         );
-
-        // 5. Mocks de Maturidade Comportamental (Média da Equipe)
-        const maturidade = {
-          autoconhecimento: 55,
-          comunicacao: 62,
-          conflitos: 40,
-          adaptabilidade: 58,
-          trabalhoEquipe: 70,
-        };
 
         setStats({
           total: totalTestes,
           distribuicao: dist,
           perfilEquipe,
-          aderenciaMedia: 85, // Mock temporário
+          aderenciaMedia: Math.round(avaliacoes.reduce((s, a) => s + a.D, 0) / totalTestes),
           maturidade,
         });
       } catch (error) {

@@ -1,10 +1,10 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
+import { calcularPontuacaoDisc, calcularAderencia, derivarPerfilDisc } from "@/lib/disc-utils";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Tipagem baseada no seu JSON
 interface Funcionario {
   cd_funcionario: string;
   nm_completo: string;
@@ -29,7 +29,7 @@ interface Funcionario {
   };
 }
 
-const ALVOS_CARGO = { D: 90, I: 60, S: 40, C: 30 };
+const ALVOS_CARGO = { D: 40, I: 30, S: 20, C: 10 };
 
 export default function RelatorioPsicometricoPage() {
   const params = useParams();
@@ -48,7 +48,26 @@ export default function RelatorioPsicometricoPage() {
           .single();
 
         if (error) throw error;
-        setColab(data);
+
+        // Normaliza os dados: calcula D/I/S/C a partir das respostas brutas
+        const raw = data as any;
+        if (raw.js_pontuacao_disc?.respostas_brutas) {
+          const scores = calcularPontuacaoDisc(raw.js_pontuacao_disc.respostas_brutas);
+          const aderencia = calcularAderencia(scores, ALVOS_CARGO);
+          const perfilDerivado = derivarPerfilDisc(scores);
+
+          setColab({
+            ...raw,
+            sg_perfil_disc: raw.sg_perfil_disc || perfilDerivado,
+            js_pontuacao_disc: {
+              ...scores,
+              aderencia,
+              competencias: raw.js_pontuacao_disc.competencias,
+            },
+          });
+        } else {
+          setColab(raw);
+        }
       } catch (err) {
         console.error("Erro ao carregar relatório:", err);
       } finally {
