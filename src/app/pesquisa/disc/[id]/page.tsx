@@ -128,8 +128,8 @@ export default function PesquisaDiscPage() {
     try {
       const isLastStep = currentStep === discQuestions.length - 1;
 
-      // Salva respostas brutas em FUNCIONARIOS (mesma tabela que o useEffect lê)
-      const { error } = await supabase
+      // Salva progresso em FUNCIONARIOS para permitir retomada
+      const { error: progressError } = await supabase
         .from("FUNCIONARIOS")
         .update({
           js_pontuacao_disc: {
@@ -139,15 +139,39 @@ export default function PesquisaDiscPage() {
         })
         .eq("cd_funcionario", params.id);
 
-      if (error) throw error;
+      if (progressError) throw progressError;
 
-      // 3. LOGICA DE NAVEGAÇÃO
+      // No último passo, calcula e grava as notas finais em AVALIACOES_DISC
+      if (isLastStep) {
+        let D = 0, I = 0, S = 0, C = 0;
+        discQuestions.forEach((group) => {
+          const ga = answers[group.id] || {};
+          D += (ga[group.words[0]] || 0);
+          I += (ga[group.words[1]] || 0);
+          S += (ga[group.words[2]] || 0);
+          C += (ga[group.words[3]] || 0);
+        });
+        const total = D + I + S + C || 1;
+
+        const { error: discError } = await supabase
+          .from("AVALIACOES_DISC")
+          .update({
+            nr_dominancia: Math.round((D / total) * 100),
+            nr_influencia: Math.round((I / total) * 100),
+            nr_estabilidade: Math.round((S / total) * 100),
+            nr_conformidade: Math.round((C / total) * 100),
+            dt_avaliacao: new Date().toISOString().split("T")[0],
+          })
+          .eq("cd_funcionario", params.id);
+
+        if (discError) throw discError;
+      }
+
       if (currentStep === 24) {
         setShowTransition(true);
       } else if (!isLastStep) {
         setCurrentStep((curr) => curr + 1);
       } else {
-        // SUCESSO ABSOLUTO
         router.push("/sucesso");
       }
     } catch (error) {
