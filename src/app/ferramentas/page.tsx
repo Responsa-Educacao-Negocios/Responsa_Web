@@ -5,38 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-// Definição das Ferramentas
+// Definição das Ferramentas — disponivel:false = em breve (sem rota criada)
 const TOOLS_DATA = [
-  {
-    id: 1,
-    category: "Arquitetura de Cargos",
-    iconCategory: "account_tree",
-    title: "Gerador de Descrição de Cargos",
-    icon: "assignment",
-    description:
-      "Crie descrições detalhadas e alinhadas ao mercado utilizando nossa base de dados de competências e responsabilidades.",
-    link: "/ferramentas/gerador-cargos", // Rota de exemplo
-  },
-  {
-    id: 2,
-    category: "Arquitetura de Cargos",
-    iconCategory: "account_tree",
-    title: "Calculadora de Turnover",
-    icon: "calculate",
-    description:
-      "Analise a rotatividade da empresa por setor, custo de reposição e identifique gargalos críticos de retenção.",
-    link: "/ferramentas/turnover", // Rota de exemplo
-  },
-  {
-    id: 3,
-    category: "Diagnóstico & Clima",
-    iconCategory: "analytics",
-    title: "Criador de Pesquisas",
-    icon: "poll",
-    description:
-      "Configure pesquisas de clima organizacional, eNPS e satisfação interna com envio automatizado e relatórios em tempo real.",
-    link: "/ferramentas/pesquisas", // Rota de exemplo
-  },
   {
     id: 4,
     category: "Diagnóstico & Clima",
@@ -45,38 +15,19 @@ const TOOLS_DATA = [
     icon: "psychology_alt",
     description:
       "Aplique e gerencie avaliações de perfil comportamental para times e lideranças, com cruzamento de dados para fit cultural.",
-    link: "/ferramentas/disc", // Rota de exemplo
+    link: "/ferramentas/disc",
+    disponivel: true,
   },
-  {
-    id: 5,
-    category: "Inovação & IA",
-    iconCategory: "smart_toy",
-    title: "Maturidade em IA (Marketing)",
-    icon: "robot_2",
-    description:
-      "Diagnóstico interativo para avaliar o nível de uso de Inteligência Artificial no negócio e gerar laudos executivos instantâneos.",
-    link: "/ferramentas/ia-marketing", // A nova rota que acabamos de criar!
-  },
-  {
-    id: 6,
-    category: "Desenvolvimento",
-    iconCategory: "school",
-    title: "Biblioteca de Competências",
-    icon: "library_books",
-    description:
-      "Acesso completo a um repositório de competências técnicas e comportamentais com indicadores de desempenho sugeridos.",
-    link: "/ferramentas/competencias", // Rota de exemplo
-  },
-  // NOVA FERRAMENTA ADICIONADA AQUI 👇
   {
     id: 7,
-    category: "Desenvolvimento",
-    iconCategory: "school",
+    category: "Diagnóstico & Clima",
+    iconCategory: "analytics",
     title: "Inventário de Gestão do Tempo",
     icon: "update",
     description:
-      "Avaliação Rosa Krausz de 96 pontos para identificar os desperdiçadores de tempo e gerar planos de desenvolvimento.",
-    link: "/ferramentas/gestao-tempo", // Rota da tela de admin que criamos
+      "Avaliação Rosa Krausz de 96 pontos para identificar os desperdiçadores de tempo e gerar planos de desenvolvimento individual.",
+    link: "/ferramentas/gestao-tempo",
+    disponivel: true,
   },
   {
     id: 8,
@@ -87,6 +38,95 @@ const TOOLS_DATA = [
     description:
       "Mapeamento completo de 60 pontos exigido pela NR-1, avaliando maturidade organizacional, liderança e gerando planos de ação.",
     link: "/ferramentas/nr1",
+    disponivel: true,
+  },
+  {
+    id: 5,
+    category: "Inovação & IA",
+    iconCategory: "smart_toy",
+    title: "Maturidade em IA (Marketing)",
+    icon: "robot_2",
+    description:
+      "Diagnóstico interativo para avaliar o nível de uso de Inteligência Artificial no negócio e gerar laudos executivos instantâneos.",
+    link: "/ferramentas/ia-marketing",
+    disponivel: true,
+  },
+  {
+    id: 9,
+    category: "Avaliação 9 Box",
+    iconCategory: "grid_view",
+    title: "9 Box — Comportamental",
+    icon: "person_check",
+    description:
+      "Mapeie o desempenho e comportamento dos colaboradores na Matriz 9 Box. Avalia Comportamento × Desempenho.",
+    link: "/ferramentas/9box",
+    disponivel: true,
+  },
+  {
+    id: 10,
+    category: "Avaliação 9 Box",
+    iconCategory: "grid_view",
+    title: "9 Box — Liderança",
+    icon: "supervisor_account",
+    description:
+      "Avalie líderes pelo cruzamento de Comportamento × Capacidade de Liderança na Matriz 9 Box. Gere relatório PDF.",
+    link: "/ferramentas/9box",
+    disponivel: true,
+  },
+  {
+    id: 11,
+    category: "Avaliação 9 Box",
+    iconCategory: "grid_view",
+    title: "9 Box — Gestão de Pessoas",
+    icon: "groups_3",
+    description:
+      "Classifique gestores e coordenadores pelo cruzamento de Comportamento × Gestão de Pessoas na Matriz 9 Box.",
+    link: "/ferramentas/9box",
+    disponivel: true,
+  },
+  {
+    id: 1,
+    category: "Arquitetura de Cargos",
+    iconCategory: "account_tree",
+    title: "Gerador de Descrição de Cargos",
+    icon: "assignment",
+    description:
+      "Crie descrições detalhadas e alinhadas ao mercado utilizando nossa base de dados de competências e responsabilidades.",
+    link: "/ferramentas/gerador-cargos",
+    disponivel: false,
+  },
+  {
+    id: 2,
+    category: "Arquitetura de Cargos",
+    iconCategory: "account_tree",
+    title: "Calculadora de Turnover",
+    icon: "calculate",
+    description:
+      "Analise a rotatividade da empresa por setor, custo de reposição e identifique gargalos críticos de retenção.",
+    link: "/ferramentas/turnover",
+    disponivel: false,
+  },
+  {
+    id: 3,
+    category: "Diagnóstico & Clima",
+    iconCategory: "analytics",
+    title: "Criador de Pesquisas",
+    icon: "poll",
+    description:
+      "Configure pesquisas de clima organizacional, eNPS e satisfação interna com envio automatizado e relatórios em tempo real.",
+    link: "/ferramentas/pesquisas",
+    disponivel: false,
+  },
+  {
+    id: 6,
+    category: "Desenvolvimento",
+    iconCategory: "school",
+    title: "Biblioteca de Competências",
+    icon: "library_books",
+    description:
+      "Repositório de competências técnicas e comportamentais com indicadores de desempenho e mapeamento por nível de cargo.",
+    link: "/ferramentas/competencias",
+    disponivel: false,
   },
 ];
 
@@ -214,18 +254,25 @@ export default function FerramentasPage() {
                   {categoryData.tools.map((tool) => (
                     <div
                       key={tool.id}
-                      className="group bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between hover:shadow-md hover:border-[#064384]/30 transition-all duration-300"
+                      className={`group bg-white rounded-2xl shadow-sm border p-6 flex flex-col justify-between transition-all duration-300 ${tool.disponivel ? "border-slate-200 hover:shadow-md hover:border-[#064384]/30" : "border-dashed border-slate-200 opacity-60"}`}
                     >
                       <div className="mb-6 flex-grow">
-                        <div className="h-14 w-14 rounded-xl bg-blue-50 text-[#064384] flex items-center justify-center mb-5 group-hover:bg-[#064384] group-hover:text-white group-hover:scale-110 transition-all duration-300">
-                          <span
-                            className="material-symbols-outlined text-3xl"
-                            style={{ fontVariationSettings: "'FILL' 1" }}
-                          >
-                            {tool.icon}
-                          </span>
+                        <div className="flex items-start justify-between mb-5">
+                          <div className={`h-14 w-14 rounded-xl flex items-center justify-center ${tool.disponivel ? "bg-blue-50 text-[#064384] group-hover:bg-[#064384] group-hover:text-white group-hover:scale-110" : "bg-slate-100 text-slate-400"} transition-all duration-300`}>
+                            <span
+                              className="material-symbols-outlined text-3xl"
+                              style={{ fontVariationSettings: "'FILL' 1" }}
+                            >
+                              {tool.icon}
+                            </span>
+                          </div>
+                          {!tool.disponivel && (
+                            <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full uppercase tracking-widest">
+                              Em breve
+                            </span>
+                          )}
                         </div>
-                        <h4 className="text-lg font-black text-slate-800 mb-2 group-hover:text-[#064384] transition-colors">
+                        <h4 className={`text-lg font-black mb-2 ${tool.disponivel ? "text-slate-800 group-hover:text-[#064384]" : "text-slate-500"} transition-colors`}>
                           {tool.title}
                         </h4>
                         <p className="text-sm text-slate-500 font-medium leading-relaxed">
@@ -233,34 +280,25 @@ export default function FerramentasPage() {
                         </p>
                       </div>
 
-                      <button
-                        onClick={() => router.push(tool.link)}
-                        className="w-full mt-auto bg-slate-50 hover:bg-[#064384] text-[#064384] hover:text-white font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 group/btn focus:outline-none border border-slate-200 hover:border-[#064384]"
-                      >
-                        Abrir Ferramenta
-                        <span className="material-symbols-outlined text-[18px] transition-transform group-hover/btn:translate-x-1">
-                          arrow_forward
-                        </span>
-                      </button>
+                      {tool.disponivel ? (
+                        <button
+                          onClick={() => router.push(tool.link)}
+                          className="w-full mt-auto bg-slate-50 hover:bg-[#064384] text-[#064384] hover:text-white font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 group/btn focus:outline-none border border-slate-200 hover:border-[#064384]"
+                        >
+                          Abrir Ferramenta
+                          <span className="material-symbols-outlined text-[18px] transition-transform group-hover/btn:translate-x-1">
+                            arrow_forward
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="w-full mt-auto bg-slate-50 text-slate-400 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 border border-slate-200 cursor-not-allowed select-none">
+                          <span className="material-symbols-outlined text-[18px]">construction</span>
+                          Em desenvolvimento
+                        </div>
+                      )}
                     </div>
                   ))}
 
-                  {/* Card Fixo de 'Em Breve' (Opcional, apenas em Desenvolvimento) */}
-                  {categoryName === "Desenvolvimento" && !searchTerm && (
-                    <div className="bg-slate-50/50 border border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center opacity-70">
-                      <div className="h-12 w-12 rounded-xl bg-slate-200 text-slate-400 flex items-center justify-center mb-4">
-                        <span className="material-symbols-outlined text-3xl">
-                          add
-                        </span>
-                      </div>
-                      <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest">
-                        Mais ferramentas em breve
-                      </h4>
-                      <p className="text-xs font-bold text-slate-400 mt-2">
-                        PDI Automatizado & 360 Graus
-                      </p>
-                    </div>
-                  )}
                 </div>
               </section>
             ))

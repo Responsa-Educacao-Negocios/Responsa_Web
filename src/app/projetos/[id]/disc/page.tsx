@@ -13,6 +13,7 @@ export default function AnaliseDiscEquipePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
+  const [listaFunc, setListaFunc] = useState<{ cd_funcionario: string; nm_completo: string; sg_perfil_disc: string | null; js_pontuacao_disc: any }[]>([]);
 
   useEffect(() => {
     const buscarDadosDaEquipe = async () => {
@@ -28,14 +29,16 @@ export default function AnaliseDiscEquipePage() {
 
         if (projError) throw projError;
 
-        // 2. Busca funcionários da empresa com DISC concluído
+        // 2. Busca funcionários da empresa
         const { data: funcionarios, error: funcError } = await supabase
           .from("FUNCIONARIOS")
-          .select("nm_completo, js_pontuacao_disc")
+          .select("cd_funcionario, nm_completo, sg_perfil_disc, js_pontuacao_disc")
           .eq("cd_empresa", projData.cd_empresa)
           .eq("sn_ativo", true);
 
         if (funcError) throw funcError;
+
+        setListaFunc(funcionarios || []);
 
         const concluidos = (funcionarios || []).filter(
           (f) => f.js_pontuacao_disc?.status === "CONCLUIDO" && f.js_pontuacao_disc?.respostas_brutas,
@@ -156,32 +159,10 @@ export default function AnaliseDiscEquipePage() {
     );
   }
 
-  // Se não houver dados estatísticos
-  if (!stats) {
-    return (
-      <div className="bg-[#F8FAFC] min-h-screen flex flex-col items-center justify-center gap-4">
-        <span className="material-symbols-outlined text-6xl text-slate-300">
-          pie_chart
-        </span>
-        <h2 className="text-xl font-bold text-slate-700">
-          Sem dados suficientes
-        </h2>
-        <p className="text-sm text-slate-500 max-w-md text-center">
-          Nenhum colaborador desta equipe finalizou o teste DISC ainda. Envie os
-          links de pesquisa para gerar este dashboard.
-        </p>
-        <button
-          onClick={() => router.back()}
-          className="mt-4 px-6 py-2 bg-[#064384] text-white rounded-lg font-bold text-sm"
-        >
-          Voltar
-        </button>
-      </div>
-    );
-  }
-
   // Gradiente do Gráfico de Rosca (Distribuição da Equipe)
-  const donutGradient = `conic-gradient(#EF4444 0% ${stats.distribuicao.D}%, #EAB308 ${stats.distribuicao.D}% ${stats.distribuicao.D + stats.distribuicao.I}%, #22C55E ${stats.distribuicao.D + stats.distribuicao.I}% ${stats.distribuicao.D + stats.distribuicao.I + stats.distribuicao.S}%, #3B82F6 ${stats.distribuicao.D + stats.distribuicao.I + stats.distribuicao.S}% 100%)`;
+  const donutGradient = stats
+    ? `conic-gradient(#EF4444 0% ${stats.distribuicao.D}%, #EAB308 ${stats.distribuicao.D}% ${stats.distribuicao.D + stats.distribuicao.I}%, #22C55E ${stats.distribuicao.D + stats.distribuicao.I}% ${stats.distribuicao.D + stats.distribuicao.I + stats.distribuicao.S}%, #3B82F6 ${stats.distribuicao.D + stats.distribuicao.I + stats.distribuicao.S}% 100%)`
+    : "";
 
   // Configuração do Gráfico de Barras Horizontais (ApexCharts)
   const barChartOptions: ApexCharts.ApexOptions = {
@@ -224,13 +205,13 @@ export default function AnaliseDiscEquipePage() {
   const barChartSeries = [
     {
       name: "Média da Equipe",
-      data: [
+      data: stats ? [
         stats.maturidade.autoconhecimento,
         stats.maturidade.comunicacao,
         stats.maturidade.conflitos,
         stats.maturidade.adaptabilidade,
         stats.maturidade.trabalhoEquipe,
-      ],
+      ] : [0, 0, 0, 0, 0],
     },
   ];
 
@@ -276,20 +257,29 @@ export default function AnaliseDiscEquipePage() {
               Visão consolidada do perfil comportamental e maturidade do time.
             </p>
           </div>
-          <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
-            <span className="material-symbols-outlined text-[#FF8323]">
-              fact_check
-            </span>
-            <span className="text-sm font-bold text-slate-700">
-              {stats.total} Testes Concluídos
-            </span>
-          </div>
+          {stats && (
+            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+              <span className="material-symbols-outlined text-[#FF8323]">
+                fact_check
+              </span>
+              <span className="text-sm font-bold text-slate-700">
+                {stats.total} Testes Concluídos
+              </span>
+            </div>
+          )}
         </div>
 
         {/* ================================================= */}
-        {/* GRID DOS GRÁFICOS (Adicionado break-inside-avoid) */}
+        {/* GRID DOS GRÁFICOS                                 */}
         {/* ================================================= */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {!stats && (
+          <div className="bg-white rounded-xl border border-dashed border-slate-300 p-12 text-center mb-6">
+            <span className="material-symbols-outlined text-5xl text-slate-300 mb-3 block">pie_chart</span>
+            <p className="font-bold text-slate-600 mb-1">Nenhum colaborador finalizou o teste DISC ainda.</p>
+            <p className="text-sm text-slate-400">Envie os links de pesquisa para gerar os gráficos consolidados.</p>
+          </div>
+        )}
+        {stats && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 1. DISTRIBUIÇÃO POR PERFIL (DONUT) */}
           <div className="bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col break-inside-avoid">
             <h3 className="font-bold text-[#064384] text-sm mb-8">
@@ -425,7 +415,84 @@ export default function AnaliseDiscEquipePage() {
               </div>
             </div>
           </div>
+        </div>}
+
+        {/* ======================================= */}
+        {/* LISTAGEM INDIVIDUAL — STATUS DISC       */}
+        {/* ======================================= */}
+        <div className="mt-8">
+          <h3 className="text-sm font-black text-[#064384] uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">group</span>
+            Status Individual — DISC por Colaborador
+          </h3>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-100">
+                  <th className="text-left px-5 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Colaborador</th>
+                  <th className="text-center px-5 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Perfil</th>
+                  <th className="text-center px-5 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Status DISC</th>
+                  <th className="text-right px-5 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {listaFunc.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-8 text-sm text-slate-400 font-medium">
+                      Nenhum colaborador cadastrado neste projeto.
+                    </td>
+                  </tr>
+                ) : (
+                  listaFunc.map((f) => {
+                    const concluido = f.js_pontuacao_disc?.status === "CONCLUIDO" && f.js_pontuacao_disc?.respostas_brutas;
+                    const perfil = f.sg_perfil_disc || (concluido ? "?" : null);
+                    const discCorMap: Record<string, string> = { D: "bg-red-500", I: "bg-yellow-400", S: "bg-green-500", C: "bg-blue-500" };
+                    const discCor = perfil ? (discCorMap[perfil[0]] || "bg-slate-400") : "bg-slate-200";
+
+                    return (
+                      <tr key={f.cd_funcionario} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <span className="font-semibold text-sm text-slate-800">{f.nm_completo}</span>
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          {perfil ? (
+                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-white text-xs font-black ${discCor}`}>
+                              {perfil[0]}
+                            </span>
+                          ) : (
+                            <span className="text-slate-300 text-xs font-bold">—</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-center">
+                          {concluido ? (
+                            <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black px-3 py-1 rounded-full">
+                              <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                              Realizado
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 bg-amber-50 text-amber-600 border border-amber-200 text-xs font-black px-3 py-1 rounded-full">
+                              <span className="material-symbols-outlined text-[14px]">schedule</span>
+                              Pendente
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <button
+                            onClick={() => router.push(`/projetos/${params.id}/equipe/${f.cd_funcionario}`)}
+                            className="text-xs font-bold text-[#064384] hover:underline"
+                          >
+                            Ver perfil
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </main>
     </div>
   );

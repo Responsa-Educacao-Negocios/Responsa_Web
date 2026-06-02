@@ -79,6 +79,11 @@ export default function ProjetoLayout({
       href: `/projetos/${projetoId}/clima`,
     },
     {
+      label: "Planilhas 9 Box",
+      icon: "grid_view",
+      href: `/projetos/${projetoId}/planilhas`,
+    },
+    {
       label: "Templates",
       icon: "description",
       href: `/projetos/${projetoId}/templates`,

@@ -3,7 +3,7 @@
 import { supabase } from "@/lib/supabase";
 import { calcularPontuacaoDisc, derivarPerfilDisc, DiscScores } from "@/lib/disc-utils";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Funcionario {
   cd_funcionario: string;
@@ -38,8 +38,73 @@ export default function MapaEquipePage() {
     ds_setor: "",
   });
 
-  // NOVO: Estado para feedback do botão de copiar link
+  // Estado para feedback do botão de copiar link
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Ref do conteúdo da árvore (para export PDF)
+  const treeContentRef = useRef<HTMLDivElement>(null);
+
+  const exportarOrganogramaPDF = () => {
+    const treeEl = treeContentRef.current;
+    if (!treeEl || funcionarios.length === 0) return;
+
+    const larguraReal = treeEl.scrollWidth;
+    const alturaReal = treeEl.scrollHeight;
+    // A4 landscape aproveitável: ~277mm * (96/25.4) ≈ 1047px, menos 40px de padding
+    const larguraDisponivel = 1000;
+    const escala = Math.min(1, larguraDisponivel / larguraReal);
+    const alturaEscalada = Math.ceil(alturaReal * escala) + 80; // +80 para o header
+
+    const treeCss = `
+      .tree-children{display:flex;justify-content:center;position:relative;padding-top:20px;}
+      .tree-children::before{content:'';position:absolute;top:0;left:50%;border-left:2px solid #CBD5E1;height:20px;transform:translateX(-50%);}
+      .tree-child-connector{position:relative;display:flex;flex-direction:column;align-items:center;padding:0 15px;}
+      .tree-child-connector::before{content:'';position:absolute;top:0;left:50%;border-left:2px solid #CBD5E1;height:20px;transform:translateX(-50%);}
+      .tree-child-connector::after{content:'';position:absolute;top:0;right:0;left:0;border-top:2px solid #CBD5E1;}
+      .tree-child-connector:first-child::after{left:50%;}
+      .tree-child-connector:last-child::after{right:50%;}
+      .tree-child-connector:only-child::after{display:none;}
+    `;
+
+    const conteudo = treeEl.innerHTML;
+    const hoje = new Date().toLocaleDateString("pt-BR");
+
+    const janela = window.open("", "_blank", "width=1300,height=900");
+    if (!janela) return;
+
+    janela.document.write(`<!DOCTYPE html><html><head>
+<meta charset="UTF-8">
+<script src="https://cdn.tailwindcss.com"><\/script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;padding:0;font-family:sans-serif;background:#F5F7FA;}
+  @page{size:A4 landscape;margin:8mm;}
+  @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}
+  ${treeCss}
+  .pdf-header{background:#064384;color:white;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;page-break-inside:avoid;}
+  .tree-wrapper{
+    padding:16px;
+    background:#F5F7FA;
+    transform:scale(${escala});
+    transform-origin:top left;
+    width:${escala < 1 ? Math.ceil(100 / escala) + "%" : "100%"};
+    min-height:${alturaEscalada}px;
+  }
+</style></head><body>
+<div class="pdf-header">
+  <div>
+    <div style="font-size:15px;font-weight:900;text-transform:uppercase;letter-spacing:2px;">Organograma da Equipe</div>
+    <div style="font-size:11px;opacity:0.7;margin-top:2px;">Mapa de Hierarquia e Perfis Comportamentais</div>
+  </div>
+  <div style="font-size:12px;font-weight:600;">${hoje}</div>
+</div>
+<div class="tree-wrapper">${conteudo}</div>
+<script>window.onload=()=>{setTimeout(()=>{window.print();window.close();},1000);};<\/script>
+</body></html>`);
+
+    janela.document.close();
+  };
 
   // Estados do Painel Lateral (Detalhes)
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -752,12 +817,20 @@ export default function MapaEquipePage() {
             </p>
           </div>
 
-          <div className="flex w-full md:w-auto mt-2 md:mt-0">
+          <div className="flex w-full md:w-auto mt-2 md:mt-0 gap-3">
+            <button
+              onClick={exportarOrganogramaPDF}
+              disabled={funcionarios.length === 0}
+              className="flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none text-slate-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shadow-sm active:scale-95"
+              title="Exportar PDF do organograma (A4 landscape)"
+            >
+              <span className="material-symbols-outlined text-[18px]">picture_as_pdf</span>
+              Exportar PDF
+            </button>
             <button
               onClick={() => {
-                // AQUI ESTÁ O SEGREDO: Resetar TODO o formulário antes de abrir
                 setFormData({
-                  cd_funcionario: null, // Garante que será um INSERT
+                  cd_funcionario: null,
                   nm_completo: "",
                   cd_lider: "",
                   cd_cargo: "",
@@ -793,7 +866,7 @@ export default function MapaEquipePage() {
               </button>
             </div>
           ) : (
-            <div className="min-w-max pb-20 pt-4">
+            <div ref={treeContentRef} className="min-w-max pb-20 pt-4">
               {raizes.map((raiz) => (
                 <div
                   key={raiz.cd_funcionario}
