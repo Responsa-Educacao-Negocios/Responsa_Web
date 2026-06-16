@@ -1,7 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import { calcularPontuacaoDisc, derivarPerfilDisc } from "@/lib/disc-utils";
+import { calcularPontuacaoDisc, derivarPerfilDisc, calcularExigenciaMeio, calcularAderencia } from "@/lib/disc-utils";
 import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -52,14 +52,21 @@ export default function AnaliseDiscEquipePage() {
         }
 
         // 3. Calcula scores de cada funcionário a partir das respostas brutas
-        const avaliacoes = concluidos.map((f) =>
-          calcularPontuacaoDisc(f.js_pontuacao_disc.respostas_brutas),
-        );
+        const avaliacoes = concluidos.map((f) => {
+          const scores = calcularPontuacaoDisc(f.js_pontuacao_disc.respostas_brutas);
+          const exigencia = calcularExigenciaMeio(f.js_pontuacao_disc.respostas_brutas);
+          const aderencia = calcularAderencia(scores, exigencia);
+          return {
+            scores,
+            respostas: f.js_pontuacao_disc.respostas_brutas,
+            aderencia
+          };
+        });
 
         // 4. Contagem de perfis predominantes
         const contagem = { D: 0, I: 0, S: 0, C: 0 };
-        avaliacoes.forEach((scores) => {
-          const perfilPrincipal = derivarPerfilDisc(scores)[0] as keyof typeof contagem;
+        avaliacoes.forEach(({ scores, respostas }) => {
+          const perfilPrincipal = derivarPerfilDisc(scores, respostas)[0] as keyof typeof contagem;
           contagem[perfilPrincipal]++;
         });
 
@@ -72,15 +79,15 @@ export default function AnaliseDiscEquipePage() {
         };
 
         // 6. Média dos scores da equipe (para barras de maturidade)
-        const mediaDI = Math.round(avaliacoes.reduce((s, a) => s + a.D + a.I, 0) / (totalTestes * 2));
-        const mediaCS = Math.round(avaliacoes.reduce((s, a) => s + a.C + a.S, 0) / (totalTestes * 2));
+        const mediaDI = Math.round(avaliacoes.reduce((s, a) => s + a.scores.D + a.scores.I, 0) / (totalTestes * 2));
+        const mediaCS = Math.round(avaliacoes.reduce((s, a) => s + a.scores.C + a.scores.S, 0) / (totalTestes * 2));
 
         const maturidade = {
           autoconhecimento: mediaCS,
           comunicacao: mediaDI,
-          conflitos: Math.round(avaliacoes.reduce((s, a) => s + a.S, 0) / totalTestes),
-          adaptabilidade: Math.round(avaliacoes.reduce((s, a) => s + a.D + a.I, 0) / (totalTestes * 2)),
-          trabalhoEquipe: Math.round(avaliacoes.reduce((s, a) => s + a.S + a.I, 0) / (totalTestes * 2)),
+          conflitos: Math.round(avaliacoes.reduce((s, a) => s + a.scores.S, 0) / totalTestes),
+          adaptabilidade: Math.round(avaliacoes.reduce((s, a) => s + a.scores.D + a.scores.I, 0) / (totalTestes * 2)),
+          trabalhoEquipe: Math.round(avaliacoes.reduce((s, a) => s + a.scores.S + a.scores.I, 0) / (totalTestes * 2)),
         };
 
         const perfilEquipe = Object.keys(dist).reduce((a, b) =>
@@ -91,7 +98,7 @@ export default function AnaliseDiscEquipePage() {
           total: totalTestes,
           distribuicao: dist,
           perfilEquipe,
-          aderenciaMedia: Math.round(avaliacoes.reduce((s, a) => s + a.D, 0) / totalTestes),
+          aderenciaMedia: Math.round(avaliacoes.reduce((s, a) => s + a.aderencia, 0) / totalTestes),
           maturidade,
         });
       } catch (error) {

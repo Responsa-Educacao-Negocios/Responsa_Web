@@ -29,19 +29,19 @@ const TIPOS_CONFIG: Record<TipoFormulario, { label: string; eixoLabel: string; i
 
 const MATRIZ: Record<Nivel, Record<Nivel, { nome: string; cor: string; bg: string; num: number }>> = {
   Acima: {
-    Abaixo: { nome: "Desenvolver Técnica",         cor: "#84cc16", bg: "#f7fee7", num: 7 },
+    Abaixo: { nome: "Desenvolver Técnica",         cor: "#84cc16", bg: "#f7fee7", num: 5 },
     Dentro: { nome: "Aprimorar Técnica",            cor: "#22c55e", bg: "#dcfce7", num: 8 },
     Acima:  { nome: "Destaques",                    cor: "#059669", bg: "#d1fae5", num: 9 },
   },
   Dentro: {
-    Abaixo: { nome: "Desenvolver Comportamento",    cor: "#f97316", bg: "#fff7ed", num: 4 },
-    Dentro: { nome: "Apr. Comportamento e Técnica", cor: "#ca8a04", bg: "#fef9c3", num: 5 },
-    Acima:  { nome: "Aprimorar Comportamento",      cor: "#22c55e", bg: "#f0fdf4", num: 6 },
+    Abaixo: { nome: "Verificar Situação",            cor: "#ca8a04", bg: "#fefce8", num: 3 },
+    Dentro: { nome: "Aprimorar Comportamento e Técnica", cor: "#ca8a04", bg: "#fef9c3", num: 6 },
+    Acima:  { nome: "Aprimorar Comportamento",      cor: "#22c55e", bg: "#f0fdf4", num: 7 },
   },
   Abaixo: {
     Abaixo: { nome: "Insuficientes",                cor: "#dc2626", bg: "#fef2f2", num: 1 },
     Dentro: { nome: "Trabalhar Valores",             cor: "#ea580c", bg: "#fff7ed", num: 2 },
-    Acima:  { nome: "Verificar Situação",            cor: "#ca8a04", bg: "#fefce8", num: 3 },
+    Acima:  { nome: "Desenvolver Comportamento",    cor: "#f97316", bg: "#fff7ed", num: 4 },
   },
 };
 

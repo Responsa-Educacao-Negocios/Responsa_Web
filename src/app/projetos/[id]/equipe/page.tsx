@@ -189,7 +189,7 @@ export default function MapaEquipePage() {
 
         if (discData?.status === "CONCLUIDO" && discData?.respostas_brutas) {
           disc_scores = calcularPontuacaoDisc(discData.respostas_brutas);
-          if (!sg_perfil_disc) sg_perfil_disc = derivarPerfilDisc(disc_scores);
+          if (!sg_perfil_disc) sg_perfil_disc = derivarPerfilDisc(disc_scores, discData.respostas_brutas);
         }
 
         return {

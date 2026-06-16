@@ -1,7 +1,8 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
-import { calcularPontuacaoDisc, calcularAderencia, derivarPerfilDisc } from "@/lib/disc-utils";
+import { calcularPontuacaoDisc, calcularExigenciaMeio, calcularCompetenciasDisc, calcularAderencia, derivarPerfilDisc, getInteracaoMeioFeedback } from "@/lib/disc-utils";
+import { DISC_COMBINATIONS, DISC_SINGLE_PROFILES, DISC_PROFILE_DETAILS, DISC_COMPETENCIES_DESC } from "@/lib/disc-data";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -17,12 +18,19 @@ interface Funcionario {
     S: number;
     C: number;
     aderencia: number;
+    exigencia?: {
+      D: number;
+      I: number;
+      S: number;
+      C: number;
+    };
     competencias?: {
       label: string;
       valor: number;
       alvo: number;
       letra: string;
     }[];
+    respostas_brutas?: Record<string, Record<string, number>>;
   };
   CARGOS?: {
     nm_titulo: string;
@@ -53,16 +61,20 @@ export default function RelatorioPsicometricoPage() {
         const raw = data as any;
         if (raw.js_pontuacao_disc?.respostas_brutas) {
           const scores = calcularPontuacaoDisc(raw.js_pontuacao_disc.respostas_brutas);
-          const aderencia = calcularAderencia(scores, ALVOS_CARGO);
-          const perfilDerivado = derivarPerfilDisc(scores);
+          const exigencia = calcularExigenciaMeio(raw.js_pontuacao_disc.respostas_brutas);
+          const competencies = calcularCompetenciasDisc(raw.js_pontuacao_disc.respostas_brutas);
+          const aderencia = calcularAderencia(scores, exigencia);
+          const perfilDerivado = derivarPerfilDisc(scores, raw.js_pontuacao_disc.respostas_brutas);
 
           setColab({
             ...raw,
             sg_perfil_disc: raw.sg_perfil_disc || perfilDerivado,
             js_pontuacao_disc: {
               ...scores,
+              exigencia,
               aderencia,
-              competencias: raw.js_pontuacao_disc.competencias,
+              competencias: competencies,
+              respostas_brutas: raw.js_pontuacao_disc.respostas_brutas,
             },
           });
         } else {
@@ -126,144 +138,474 @@ export default function RelatorioPsicometricoPage() {
     if (!janela) return;
 
     const disc = colab.js_pontuacao_disc;
-    const dataAvaliacao = new Date(colab.dt_admissao).toLocaleDateString(
-      "pt-BR",
-    );
+    const dataAvaliacao = new Date(colab.dt_admissao).toLocaleDateString("pt-BR");
 
-    // Monta o HTML das competências com o gráfico de "Atual" vs "Exigência"
-    const competenciasHtml =
-      disc.competencias
-        ?.map(
-          (c) => `
-      <div style="margin-bottom: 35px; page-break-inside: avoid;">
-        <h3 style="font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 5px;">${c.label}</h3>
-        <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
-          <span style="color: #064384;">Atual: ${c.valor}%</span>
-          <span style="color: #EF4444;">Exigência do Meio: ${c.alvo}%</span>
+    const code = colab.sg_perfil_disc || "";
+    const letterToNumber: Record<string, string> = { D: "1", I: "2", S: "3", C: "4" };
+    const numericCode = code.split("").map(l => letterToNumber[l] || "").join("");
+    const combinationText = DISC_COMBINATIONS[numericCode] || "";
+    const primaryLetter = code[0] || "D";
+    const singleProfileText = DISC_SINGLE_PROFILES[primaryLetter] || "";
+    const profileDescription = [combinationText, singleProfileText].filter(Boolean).join("\n\n");
+
+    const targets = disc.exigencia || { D: 50, I: 50, S: 50, C: 50 };
+    const feedbackText = getInteracaoMeioFeedback(disc, targets);
+
+    const letters = code.split("");
+    const characteristicsHtml = letters.map(letter => {
+      const details = DISC_PROFILE_DETAILS[letter];
+      if (!details) return "";
+      const label = letter === "D" ? "DOMINÂNCIA (D)" : letter === "I" ? "INFLUÊNCIA (I)" : letter === "S" ? "ESTABILIDADE (S)" : "CONFORMIDADE (C)";
+      const colorClass = letter === "D" ? "#dc2626" : letter === "I" ? "#d97706" : letter === "S" ? "#16a34a" : "#2563eb";
+      const bgLight = letter === "D" ? "#fef2f2" : letter === "I" ? "#fffbeb" : letter === "S" ? "#f0fdf4" : "#eff6ff";
+      const borderLight = letter === "D" ? "#fecaca" : letter === "I" ? "#fef3c7" : letter === "S" ? "#bbf7d0" : "#bfdbfe";
+      return `
+        <div style="flex: 1; min-width: 0; border: 1px solid ${borderLight}; border-radius: 12px; padding: 20px; background: ${bgLight}; box-sizing: border-box;">
+          <h3 style="font-size: 16px; font-weight: 800; color: ${colorClass}; border-bottom: 2px solid ${borderLight}; padding-bottom: 8px; margin-top: 0; margin-bottom: 15px;">${label}</h3>
+          
+          <h4 style="font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 8px; margin-top: 0;">Palavras-chave</h4>
+          <ul style="padding-left: 18px; margin-bottom: 18px; font-size: 13px; color: #334155; line-height: 1.4;">
+            ${details.keywords.map(w => `<li>${w}</li>`).join("")}
+          </ul>
+
+          <h4 style="font-size: 12px; font-weight: 700; color: #16a34a; text-transform: uppercase; margin-bottom: 8px; margin-top: 0;">Pontos Fortes</h4>
+          <ul style="padding-left: 18px; margin-bottom: 18px; font-size: 13px; color: #15803d; line-height: 1.4;">
+            ${details.strengths.map(w => `<li>${w}</li>`).join("")}
+          </ul>
+
+          <h4 style="font-size: 12px; font-weight: 700; color: #ea580c; text-transform: uppercase; margin-bottom: 8px; margin-top: 0;">Pontos a Desenvolver</h4>
+          <ul style="padding-left: 18px; margin-bottom: 18px; font-size: 13px; color: #c2410c; line-height: 1.4;">
+            ${details.develop.map(w => `<li>${w}</li>`).join("")}
+          </ul>
+
+          <h4 style="font-size: 12px; font-weight: 700; color: #dc2626; text-transform: uppercase; margin-bottom: 8px; margin-top: 0;">Sob Pressão</h4>
+          <p style="font-size: 13px; color: #b91c1c; font-weight: 600; margin: 0; line-height: 1.4;">
+            ${details.pressure[0] || ""}
+          </p>
         </div>
-        <div style="position: relative; height: 24px; background: #f1f5f9; border-radius: 4px; width: 100%;">
-          <div style="position: absolute; left: 0; top: 0; height: 100%; background: #fee2e2; border-left: 4px solid #EF4444; width: ${c.alvo}%; border-radius: 4px 0 0 4px;"></div>
-          <div style="position: absolute; left: 0; top: 6px; height: 12px; background: #064384; width: ${c.valor}%; border-radius: 4px;"></div>
+      `;
+    }).join("");
+
+    const profiles = [
+      { letter: "D", name: "DOMINÂNCIA (D)", val: disc.D, target: targets.D },
+      { letter: "I", name: "INFLUÊNCIA (I)", val: disc.I, target: targets.I },
+      { letter: "S", name: "ESTABILIDADE (S)", val: disc.S, target: targets.S },
+      { letter: "C", name: "CONFORMIDADE (C)", val: disc.C, target: targets.C }
+    ];
+    const comparisonChartsHtml = profiles.map(p => {
+      const adapt = Math.round((p.val + p.target) / 2);
+      return `
+        <div style="margin-bottom: 18px; page-break-inside: avoid;">
+          <div style="font-size: 13px; font-weight: bold; color: #1e293b; margin-bottom: 6px;">${p.name}</div>
+          
+          <div style="display: flex; flex-direction: column; gap: 6px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; border-radius: 8px; box-sizing: border-box;">
+            <!-- Natural -->
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 10px; font-weight: bold; width: 80px; color: #064384;">Perfil Atual:</span>
+              <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; position: relative;">
+                <div style="width: ${p.val}%; height: 100%; background: #064384; border-radius: 5px;"></div>
+              </div>
+              <span style="font-size: 11px; font-weight: bold; width: 35px; text-align: right; color: #064384;">${p.val}%</span>
+            </div>
+            
+            <!-- Exigência -->
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 10px; font-weight: bold; width: 80px; color: #dc2626;">Exigência:</span>
+              <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; position: relative;">
+                <div style="width: ${p.target}%; height: 100%; background: #dc2626; border-radius: 5px;"></div>
+              </div>
+              <span style="font-size: 11px; font-weight: bold; width: 35px; text-align: right; color: #dc2626;">${p.target}%</span>
+            </div>
+            
+            <!-- Adaptado -->
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 10px; font-weight: bold; width: 80px; color: #8B5CF6;">Adaptado:</span>
+              <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; position: relative;">
+                <div style="width: ${adapt}%; height: 100%; background: #8B5CF6; border-radius: 5px;"></div>
+              </div>
+              <span style="font-size: 11px; font-weight: bold; width: 35px; text-align: right; color: #8B5CF6;">${adapt}%</span>
+            </div>
+          </div>
         </div>
-        <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; margin-top: 5px; font-weight: bold;">
-          <span>0%</span><span>10%</span><span>20%</span><span>30%</span><span>40%</span><span>50%</span><span>60%</span><span>70%</span><span>80%</span><span>90%</span><span>100%</span>
+      `;
+    }).join("");
+
+    const compGroups = {
+      D: { name: "Dominância (D)", color: "#dc2626" },
+      I: { name: "Influência (I)", color: "#d97706" },
+      S: { name: "Estabilidade (S)", color: "#16a34a" },
+      C: { name: "Conformidade (C)", color: "#2563eb" }
+    };
+    const competenciesGroupsHtml = Object.entries(compGroups).map(([letra, group]) => {
+      const groupComps = disc.competencias?.filter(c => c.letra === letra) || [];
+      return `
+        <div style="margin-bottom: 15px; page-break-inside: avoid;">
+          <h3 style="font-size: 12px; font-weight: 800; color: ${group.color}; border-bottom: 2px solid ${group.color}22; padding-bottom: 4px; margin-top: 0; margin-bottom: 8px; text-transform: uppercase;">
+            Competências de ${group.name}
+          </h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            ${groupComps.map(c => {
+              const desc = DISC_COMPETENCIES_DESC[c.label] || "";
+              return `
+                <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px 10px; background: #fafafa; font-size: 10.5px; box-sizing: border-box;">
+                  <div style="display: flex; justify-content: space-between; font-weight: bold; color: #1e293b; margin-bottom: 2px;">
+                    <span>${c.label}</span>
+                    <span style="font-size: 9px; color: #64748b;">At: ${c.valor}% / Ex: ${c.alvo}%</span>
+                  </div>
+                  <div style="position: relative; height: 8px; background: #e2e8f0; border-radius: 4px; width: 100%; margin-bottom: 4px; overflow: hidden;">
+                    <div style="position: absolute; left: 0; top: 0; height: 100%; background: #fee2e2; border-left: 2px solid #EF4444; width: ${c.alvo}%;"></div>
+                    <div style="position: absolute; left: 0; top: 2px; height: 4px; background: #064384; width: ${c.valor}%; border-radius: 2px;"></div>
+                  </div>
+                  <div style="color: #64748b; font-size: 9px; line-height: 1.3; text-align: justify;">${desc}</div>
+                </div>
+              `;
+            }).join("")}
+          </div>
         </div>
-      </div>
-    `,
-        )
-        .join("") || "";
+      `;
+    }).join("");
 
     janela.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
           <title>Relatório DISC - ${colab.nm_completo}</title>
           <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
-            body { font-family: 'Inter', sans-serif; color: #334155; line-height: 1.5; margin: 0; padding: 0; }
-            @media print {
-              @page { margin: 15mm; size: A4; }
-              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-              .page-break { page-break-before: always; }
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+            body {
+              font-family: 'Inter', sans-serif;
+              color: #1e293b;
+              margin: 0;
+              padding: 0;
+              background: #f1f5f9;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
             }
-            .cover { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; text-align: center; background: #fff; }
-            .cover-header { position: absolute; top: 40px; left: 40px; font-size: 12px; color: #94a3b8; font-weight: bold; text-transform: uppercase; }
-            .content-page { padding: 40px; }
-            .title-small { font-size: 16px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 10px; }
-            .title-large { font-size: 70px; font-weight: 900; color: #064384; margin: 0; letter-spacing: -2px; }
-            .name-title { font-size: 24px; font-weight: 800; color: #1e293b; margin-top: 50px; }
+            .page {
+              width: 210mm;
+              height: 297mm;
+              margin: 20px auto;
+              padding: 20mm;
+              background: white;
+              box-sizing: border-box;
+              box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+              position: relative;
+              overflow: hidden;
+              display: flex;
+              flex-direction: column;
+            }
+            .page-break {
+              page-break-after: always;
+            }
+            @media print {
+              body {
+                background: white;
+                padding: 0;
+                margin: 0;
+              }
+              .page {
+                margin: 0;
+                box-shadow: none;
+                page-break-after: always;
+                page-break-inside: avoid;
+                height: 297mm;
+              }
+              .no-print {
+                display: none !important;
+              }
+            }
             
-            .section-title { font-size: 22px; font-weight: 900; color: #064384; border-bottom: 3px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 30px; text-transform: uppercase; }
+            .header-info {
+              font-size: 11px;
+              color: #94a3b8;
+              font-weight: 600;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              border-bottom: 1px solid #e2e8f0;
+              padding-bottom: 6px;
+              margin-bottom: 20px;
+              display: flex;
+              justify-content: space-between;
+            }
             
-            .disc-bar-container { margin-bottom: 25px; }
-            .disc-bar-header { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin-bottom: 5px; }
-            .disc-bar-bg { background: #f1f5f9; height: 24px; border-radius: 12px; width: 100%; position: relative; overflow: hidden; }
-            .disc-bar-target { position: absolute; height: 100%; border-left: 3px solid #EF4444; background: #fee2e2; z-index: 1; }
-            .disc-bar-fill { height: 10px; position: absolute; left: 0; top: 7px; border-radius: 5px; z-index: 2; background: #064384; }
+            .footer-info {
+              position: absolute;
+              bottom: 20mm;
+              left: 20mm;
+              right: 20mm;
+              font-size: 10px;
+              color: #94a3b8;
+              font-weight: 600;
+              border-top: 1px solid #e2e8f0;
+              padding-top: 6px;
+              display: flex;
+              justify-content: space-between;
+            }
             
-            .box-insight { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 25px; margin-top: 30px; }
-            .label-insight { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; display: block; }
+            .page-content {
+              flex: 1;
+              display: flex;
+              flex-direction: column;
+            }
+            
+            .title-large {
+              font-size: 48px;
+              font-weight: 900;
+              color: #064384;
+              letter-spacing: -1.5px;
+              margin: 20px 0;
+              text-transform: uppercase;
+            }
+            
+            .title-section {
+              font-size: 20px;
+              font-weight: 800;
+              color: #064384;
+              margin-top: 0;
+              margin-bottom: 6px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
+            
+            .subtitle-section {
+              font-size: 12px;
+              font-weight: 600;
+              color: #64748b;
+              margin-top: 0;
+              margin-bottom: 25px;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+            }
           </style>
         </head>
         <body>
-          <div class="cover">
-            <div class="cover-header">Relatório DISC: ${colab.nm_completo}</div>
-            <div class="title-small">Relatório de Perfil Comportamental</div>
-            <div class="title-large">DISC</div>
-            <div class="name-title">Nome: ${colab.nm_completo}</div>
-            <div style="margin-top: auto; padding-bottom: 40px; color: #64748b; font-weight: bold;">
+          <!-- FLOATING BAR -->
+          <div class="no-print" style="position: fixed; top: 0; left: 0; right: 0; background: #064384; color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; z-index: 9999; font-family: 'Inter', sans-serif; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <span style="font-size: 13px; font-weight: 500;">
+              ✍️ <strong>Dica:</strong> Você pode clicar e editar os campos <strong>Objetivo</strong> e <strong>Data para o Objetivo</strong> na capa antes de imprimir.
+            </span>
+            <button onclick="window.print()" style="background: #FF8323; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+              Imprimir / Salvar PDF
+            </button>
+          </div>
+
+          <!-- PAGE 1: COVER -->
+          <div class="page page-break" style="justify-content: center; align-items: center; text-align: center;">
+            <div style="font-size: 14px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 15px;">
+              Mapeamento Comportamental
+            </div>
+            <div style="font-size: 82px; font-weight: 900; color: #064384; margin: 0; letter-spacing: -3px; line-height: 1;">
+              DISC
+            </div>
+            <div style="width: 100px; h-1.5; background: #FF8323; height: 5px; margin: 30px auto; border-radius: 3px;"></div>
+            
+            <div style="font-size: 26px; font-weight: 800; color: #1e293b; margin-top: 20px;">
+              ${colab.nm_completo}
+            </div>
+            <div style="font-size: 14px; color: #64748b; font-weight: 600; margin-top: 8px; text-transform: uppercase; letter-spacing: 1px;">
+              Cargo: ${colab.CARGOS?.nm_titulo || "Sem Cargo Specified"}
+            </div>
+
+            <div style="margin-top: 60px; width: 80%; text-align: left; border-top: 1px solid #e2e8f0; padding-top: 30px; margin-bottom: auto;">
+              <div style="font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">
+                Objetivo do Relatório (Clique para editar):
+              </div>
+              <div contenteditable="true" style="border: 1px dashed #cbd5e1; padding: 12px; border-radius: 8px; font-size: 13.5px; min-height: 50px; outline: none; background: #f8fafc; color: #334155; line-height: 1.5;">
+                Desenvolvimento Individual de Carreira e feedback comportamental.
+              </div>
+              
+              <div style="font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-top: 20px; margin-bottom: 4px;">
+                Data Prevista para o Objetivo (Clique para editar):
+              </div>
+              <div contenteditable="true" style="border: 1px dashed #cbd5e1; padding: 12px; border-radius: 8px; font-size: 13.5px; min-height: 20px; outline: none; background: #f8fafc; color: #334155; line-height: 1.5;">
+                Dezembro de 2026
+              </div>
+            </div>
+
+            <div style="color: #94a3b8; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1.5px; margin-top: auto;">
               DATA DA AVALIAÇÃO: ${dataAvaliacao}
             </div>
           </div>
 
-          <div class="page-break content-page">
-            <h2 class="section-title">Objetivo e Perfil</h2>
+          <!-- PAGE 2: PROFILE DESCRIPTION -->
+          <div class="page page-break">
+            <div class="header-info">
+              <span>Mapeamento Comportamental (DISC)</span>
+              <span>Relatório Individual</span>
+            </div>
             
-            <div style="background: #f8fafc; padding: 25px; border-left: 6px solid #064384; border-radius: 8px; margin-bottom: 40px;">
-              <p style="font-size: 14px; margin: 0; color: #64748b; font-weight: 600;">Perfil Predominante:</p>
-              <p style="font-size: 32px; font-weight: 900; color: #064384; margin: 5px 0 0 0;">${colab.sg_perfil_disc}</p>
-              <p style="font-size: 13px; font-weight: 700; color: #475569; margin-top: 10px;">Aderência ao Cargo: ${disc.aderencia}%</p>
-            </div>
+            <div class="page-content">
+              <h2 class="title-section">Perfil Predominante</h2>
+              <div class="subtitle-section">Seu Perfil Predominante e Análise Geral</div>
+              
+              <div style="background: #064384; color: white; padding: 30px; border-radius: 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(6,67,132,0.15);">
+                <div>
+                  <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 4px;">Perfil Identificado</div>
+                  <div style="font-size: 42px; font-weight: 900; letter-spacing: -1px; line-height: 1;">${colab.sg_perfil_disc}</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 4px;">Aderência Geral ao Cargo</div>
+                  <div style="font-size: 36px; font-weight: 900; line-height: 1;">${disc.aderencia}%</div>
+                </div>
+              </div>
 
-            <h2 class="section-title">Análise de Tendências (D-I-S-C)</h2>
-            <p style="font-size: 12px; color: #64748b; margin-bottom: 30px;">
-              As barras <span style="color:#064384; font-weight:bold;">azuis</span> representam o score atual. 
-              As áreas <span style="color:#EF4444; font-weight:bold;">vermelhas</span> indicam a exigência ideal para a função.
-            </p>
-            
-            <div class="disc-bar-container">
-              <div class="disc-bar-header"><span>DOMINÂNCIA (D)</span><span>${disc.D}% / ${dynamicTargets.D}%</span></div>
-              <div class="disc-bar-bg">
-                <div class="disc-bar-target" style="width: ${dynamicTargets.D}%;"></div>
-                <div class="disc-bar-fill" style="width: ${disc.D}%;"></div>
-              </div>
-            </div>
-            <div class="disc-bar-container">
-              <div class="disc-bar-header"><span>INFLUÊNCIA (I)</span><span>${disc.I}% / ${dynamicTargets.I}%</span></div>
-              <div class="disc-bar-bg">
-                <div class="disc-bar-target" style="width: ${dynamicTargets.I}%;"></div>
-                <div class="disc-bar-fill" style="width: ${disc.I}%;"></div>
-              </div>
-            </div>
-            <div class="disc-bar-container">
-              <div class="disc-bar-header"><span>ESTABILIDADE (S)</span><span>${disc.S}% / ${dynamicTargets.S}%</span></div>
-              <div class="disc-bar-bg">
-                <div class="disc-bar-target" style="width: ${dynamicTargets.S}%;"></div>
-                <div class="disc-bar-fill" style="width: ${disc.S}%;"></div>
-              </div>
-            </div>
-            <div class="disc-bar-container">
-              <div class="disc-bar-header"><span>CONFORMIDADE (C)</span><span>${disc.C}% / ${dynamicTargets.C}%</span></div>
-              <div class="disc-bar-bg">
-                <div class="disc-bar-target" style="width: ${dynamicTargets.C}%;"></div>
-                <div class="disc-bar-fill" style="width: ${disc.C}%;"></div>
+              <div style="font-size: 14px; line-height: 1.7; color: #334155; text-align: justify; white-space: pre-wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 30px; flex: 1;">
+${profileDescription}
               </div>
             </div>
 
-            <div class="box-insight" style="border-left: 6px solid #ef4444; background: #fff5f5;">
-              <span class="label-insight" style="color: #b91c1c;">⚠️ Comportamento Sob Pressão</span>
-              <p style="font-size: 14px; color: #7f1d1d; font-weight: 600; margin: 0;">
-                Em situações de estresse elevado, ${colab.nm_completo.split(" ")[0]} ${infoPerfil.pressao}
-              </p>
+            <div class="footer-info">
+              <span>Candidato: ${colab.nm_completo}</span>
+              <span>Página 2 de 6</span>
             </div>
           </div>
 
-          <div class="page-break content-page">
-            <h2 class="section-title">Análise de Competências</h2>
-            ${competenciasHtml}
-          </div>
+          <!-- PAGE 3: CHARACTERISTICS -->
+          <div class="page page-break">
+            <div class="header-info">
+              <span>Mapeamento Comportamental (DISC)</span>
+              <span>Relatório Individual</span>
+            </div>
 
-          <div class="page-break content-page">
-            <h2 class="section-title">Plano de Desenvolvimento (PDI)</h2>
-            <div style="background: #f8fafc; padding: 30px; border-radius: 12px; border: 1px solid #e2e8f0; min-height: 400px; color: #334155; font-size: 14px; white-space: pre-wrap;">
-${colab.ds_observacoes || "<i>Nenhum plano de desenvolvimento registrado.</i>"}
+            <div class="page-content">
+              <h2 class="title-section">Características Principais</h2>
+              <div class="subtitle-section">Palavras-chave, pontos fortes, pontos a desenvolver e reações sob pressão</div>
+              
+              <div style="display: flex; gap: 20px; width: 100%; flex: 1; align-items: stretch;">
+                ${characteristicsHtml}
+              </div>
+            </div>
+
+            <div class="footer-info">
+              <span>Candidato: ${colab.nm_completo}</span>
+              <span>Página 3 de 6</span>
             </div>
           </div>
 
-          <script>
-            window.onload = () => { 
-              setTimeout(() => { window.print(); window.close(); }, 800); 
-            };
-          </script>
+          <!-- PAGE 4: CHARTS & FEEDBACK -->
+          <div class="page page-break">
+            <div class="header-info">
+              <span>Mapeamento Comportamental (DISC)</span>
+              <span>Relatório Individual</span>
+            </div>
+
+            <div class="page-content">
+              <h2 class="title-section">Interação com o Meio</h2>
+              <div class="subtitle-section">Comparativo entre Perfil Natural, Exigência do Meio e Perfil Adaptado</div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; align-items: start;">
+                <!-- Column 1: Charts -->
+                <div>
+                  ${comparisonChartsHtml}
+                </div>
+                
+                <!-- Column 2: Explanation & Feedback -->
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; box-sizing: border-box;">
+                    <div style="font-size: 11px; font-weight: bold; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;">Legenda dos Gráficos</div>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 16px; height: 8px; background: #064384; border-radius: 4px;"></div>
+                        <span><strong>Perfil Natural:</strong> Comportamento inato, mais presente no dia a dia.</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 16px; height: 8px; background: #dc2626; border-radius: 4px;"></div>
+                        <span><strong>Exigência do Meio:</strong> O que o meio (profissional/pessoal) exige.</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 8px;">
+                        <div style="width: 16px; height: 8px; background: #8B5CF6; border-radius: 4px;"></div>
+                        <span><strong>Perfil Adaptado:</strong> Comportamento de adaptação real gerado.</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style="font-size: 12.5px; line-height: 1.6; color: #334155; text-align: justify; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; white-space: pre-wrap; box-sizing: border-box;">
+${feedbackText}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="footer-info">
+              <span>Candidato: ${colab.nm_completo}</span>
+              <span>Página 4 de 6</span>
+            </div>
+          </div>
+
+          <!-- PAGE 5: ADAPTATIONS -->
+          <div class="page page-break">
+            <div class="header-info">
+              <span>Mapeamento Comportamental (DISC)</span>
+              <span>Relatório Individual</span>
+            </div>
+
+            <div class="page-content" style="justify-content: center;">
+              <h2 class="title-section">Quadro de Adaptações</h2>
+              <div class="subtitle-section">Como trabalhar as características comportamentais para adaptar-se ao meio</div>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;">
+                <!-- D -->
+                <div style="border: 1px solid #fecaca; border-radius: 12px; padding: 16px; background: #fef2f2; box-sizing: border-box;">
+                  <h3 style="font-size: 15px; font-weight: bold; color: #dc2626; border-bottom: 2px solid #fca5a5; padding-bottom: 6px; margin: 0 0 12px 0;">DOMINÂNCIA (D)</h3>
+                  <div style="font-size: 12px; color: #16a34a; font-weight: bold; margin-bottom: 4px;">Aumentar (+)</div>
+                  <div style="font-size: 12px; color: #475569; margin-bottom: 12px; line-height: 1.4;">Independência, Assertividade, Proatividade, Pulso, Senso de Urgência, Compreensão.</div>
+                  <div style="font-size: 12px; color: #dc2626; font-weight: bold; margin-bottom: 4px;">Diminuir (-)</div>
+                  <div style="font-size: 12px; color: #475569; line-height: 1.4;">Independência excessiva, Dominância, Agradabilidade extrema, Cuidado extremo.</div>
+                </div>
+                <!-- I -->
+                <div style="border: 1px solid #fef3c7; border-radius: 12px; padding: 16px; background: #fffbeb; box-sizing: border-box;">
+                  <h3 style="font-size: 15px; font-weight: bold; color: #d97706; border-bottom: 2px solid #fde68a; padding-bottom: 6px; margin: 0 0 12px 0;">INFLUÊNCIA (I)</h3>
+                  <div style="font-size: 12px; color: #16a34a; font-weight: bold; margin-bottom: 4px;">Aumentar (+)</div>
+                  <div style="font-size: 12px; color: #475569; margin-bottom: 12px; line-height: 1.4;">Comunicação ativa, Trabalho em Equipe, Otimismo, Envolvimento pessoal, Popularidade.</div>
+                  <div style="font-size: 12px; color: #dc2626; font-weight: bold; margin-bottom: 4px;">Diminuir (-)</div>
+                  <div style="font-size: 12px; color: #475569; line-height: 1.4;">Foco Técnico rígido, Rigor Analítico, Reserva, Impulsividade, Organização excessiva.</div>
+                </div>
+                <!-- S -->
+                <div style="border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; background: #f0fdf4; box-sizing: border-box;">
+                  <h3 style="font-size: 15px; font-weight: bold; color: #16a34a; border-bottom: 2px solid #86efac; padding-bottom: 6px; margin: 0 0 12px 0;">ESTABILIDADE (S)</h3>
+                  <div style="font-size: 12px; color: #16a34a; font-weight: bold; margin-bottom: 4px;">Aumentar (+)</div>
+                  <div style="font-size: 12px; color: #475569; margin-bottom: 12px; line-height: 1.4;">Método de trabalho, Paciência, Tolerância, Organização, Comando pessoal, Rapidez, Exposição a Mudanças, Assumir Riscos.</div>
+                  <div style="font-size: 12px; color: #dc2626; font-weight: bold; margin-bottom: 4px;">Diminuir (-)</div>
+                  <div style="font-size: 12px; color: #475569; line-height: 1.4;">Apressamento de tarefas, Tempo de Execução prolongado.</div>
+                </div>
+                <!-- C -->
+                <div style="border: 1px solid #bfdbfe; border-radius: 12px; padding: 16px; background: #eff6ff; box-sizing: border-box;">
+                  <h3 style="font-size: 15px; font-weight: bold; color: #2563eb; border-bottom: 2px solid #93c5fd; padding-bottom: 6px; margin: 0 0 12px 0;">CONFORMIDADE (C)</h3>
+                  <div style="font-size: 12px; color: #16a34a; font-weight: bold; margin-bottom: 4px;">Aumentar (+)</div>
+                  <div style="font-size: 12px; color: #475569; margin-bottom: 12px; line-height: 1.4;">Estruturação de processos, Especialização técnica, Cuidado, Reserva pessoal, Discrição.</div>
+                  <div style="font-size: 12px; color: #dc2626; font-weight: bold; margin-bottom: 4px;">Diminuir (-)</div>
+                  <div style="font-size: 12px; color: #475569; line-height: 1.4;">Formalismo excessivo, Espírito Aventureiro, Trabalho em Equipe excessivo, Perfeccionismo extremo, Organização exagerada.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="footer-info">
+              <span>Candidato: ${colab.nm_completo}</span>
+              <span>Página 5 de 6</span>
+            </div>
+          </div>
+
+          <!-- PAGE 6: MATRIZ DE COMPETENCIAS -->
+          <div class="page page-break" style="padding: 15mm 20mm 20mm 20mm;">
+            <div class="header-info">
+              <span>Mapeamento Comportamental (DISC)</span>
+              <span>Relatório Individual</span>
+            </div>
+
+            <div class="page-content">
+              <h2 class="title-section" style="margin-bottom: 4px;">Matriz das Competências</h2>
+              <div class="subtitle-section" style="margin-bottom: 12px;">Mapa comparativo das 20 competências comportamentais avaliadas</div>
+              
+              <div style="flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+                ${competenciesGroupsHtml}
+              </div>
+            </div>
+
+            <div class="footer-info">
+              <span>Candidato: ${colab.nm_completo}</span>
+              <span>Página 6 de 6</span>
+            </div>
+          </div>
         </body>
       </html>
     `);
@@ -314,7 +656,7 @@ ${colab.ds_observacoes || "<i>Nenhum plano de desenvolvimento registrado.</i>"}
     return Math.round(comps.reduce((acc, curr) => acc + curr.alvo, 0) / comps.length);
   };
 
-  const dynamicTargets = {
+  const dynamicTargets = disc.exigencia || {
     D: getAlvoMedio("D"),
     I: getAlvoMedio("I"),
     S: getAlvoMedio("S"),
