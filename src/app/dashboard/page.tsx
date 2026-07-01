@@ -19,6 +19,13 @@ interface ProjetoDashboard {
   };
 }
 
+interface Progresso {
+  totalProjetos: number;
+  totalClientes: number;
+  totalRelatorios: number;
+  percentual: number;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -28,6 +35,12 @@ export default function DashboardPage() {
     horasMes: 0,
     faturasPendentes: 0,
     totalFaturado: 0,
+  });
+  const [progresso, setProgresso] = useState<Progresso>({
+    totalProjetos: 0,
+    totalClientes: 0,
+    totalRelatorios: 0,
+    percentual: 0,
   });
 
   useEffect(() => {
@@ -42,28 +55,36 @@ export default function DashboardPage() {
       }
 
       try {
-        const { data: projetosData } = await supabase
-          .from("PROJETOS")
-          .select(
-            `
-            cd_projeto, nr_horas_contratadas, nr_horas_consumidas, tp_status,
-            EMPRESAS ( nm_fantasia ),
-            TIPOS_CONSULTORIA ( nm_servico )
-          `,
-          )
-          .eq("tp_status", "ATIVO")
-          .order("ts_atualizacao", { ascending: false })
-          .limit(5);
-
-        const { count: faturasPendentesCount } = await supabase
-          .from("FATURAS")
-          .select("*", { count: "exact", head: true })
-          .eq("tp_status", "PENDENTE");
-
-        const { data: faturasPagas } = await supabase
-          .from("FATURAS")
-          .select("vl_fatura")
-          .eq("tp_status", "PAGA");
+        const [
+          { data: projetosData },
+          { count: faturasPendentesCount },
+          { data: faturasPagas },
+          { count: totalProjetosCount },
+          { count: totalClientesCount },
+          { count: discCount },
+        ] = await Promise.all([
+          supabase
+            .from("PROJETOS")
+            .select(
+              `cd_projeto, nr_horas_contratadas, nr_horas_consumidas, tp_status,
+              EMPRESAS ( nm_fantasia ),
+              TIPOS_CONSULTORIA ( nm_servico )`,
+            )
+            .eq("tp_status", "ATIVO")
+            .order("ts_atualizacao", { ascending: false })
+            .limit(5),
+          supabase
+            .from("FATURAS")
+            .select("*", { count: "exact", head: true })
+            .eq("tp_status", "PENDENTE"),
+          supabase.from("FATURAS").select("vl_fatura").eq("tp_status", "PAGA"),
+          supabase.from("PROJETOS").select("*", { count: "exact", head: true }),
+          supabase.from("EMPRESAS").select("*", { count: "exact", head: true }),
+          supabase
+            .from("AVALIACOES_DISC_AVULSO")
+            .select("*", { count: "exact", head: true })
+            .eq("tp_status", "CONCLUIDO"),
+        ]);
 
         const totalFaturado =
           faturasPagas?.reduce(
@@ -72,10 +93,31 @@ export default function DashboardPage() {
           ) || 0;
 
         if (projetosData) setProjetos(projetosData as any);
+
+        const numProjetos = totalProjetosCount || 0;
+        const numClientes = totalClientesCount || 0;
+        const numRelatorios = discCount || 0;
+
+        const marcos = [
+          numProjetos >= 1,
+          numClientes >= 1,
+          numRelatorios >= 1,
+          numProjetos >= 3,
+          numClientes >= 3,
+        ];
+        const completados = marcos.filter(Boolean).length;
+        const pct = Math.round((completados / marcos.length) * 100);
+
         setMetricas({
           horasMes: 124,
           faturasPendentes: faturasPendentesCount || 0,
-          totalFaturado: totalFaturado,
+          totalFaturado,
+        });
+        setProgresso({
+          totalProjetos: numProjetos,
+          totalClientes: numClientes,
+          totalRelatorios: numRelatorios,
+          percentual: pct,
         });
       } catch (error) {
         console.error("Erro ao carregar dados do dashboard:", error);
@@ -188,6 +230,77 @@ export default function DashboardPage() {
                     {formatarMoeda(metricas.totalFaturado)}
                   </span>
                 </div>
+              </div>
+            </div>
+          </section>
+
+          {/* PROGRESSO DA PLATAFORMA */}
+          <section>
+            <div className="flex items-center justify-between px-1 mb-4">
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">
+                Progresso na Plataforma
+              </h3>
+              <span className="text-xs font-bold text-primary bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+                {progresso.percentual}% concluído
+              </span>
+            </div>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-primary to-blue-400 transition-all duration-700"
+                    style={{ width: `${progresso.percentual}%` }}
+                  />
+                </div>
+                <span className="text-2xl font-black text-primary shrink-0">
+                  {progresso.percentual}%
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                {[
+                  {
+                    label: "Primeiro projeto criado",
+                    done: progresso.totalProjetos >= 1,
+                    icon: "folder",
+                  },
+                  {
+                    label: "Primeiro cliente cadastrado",
+                    done: progresso.totalClientes >= 1,
+                    icon: "business",
+                  },
+                  {
+                    label: "Primeiro relatório DISC emitido",
+                    done: progresso.totalRelatorios >= 1,
+                    icon: "picture_as_pdf",
+                  },
+                  {
+                    label: "3 ou mais projetos ativos",
+                    done: progresso.totalProjetos >= 3,
+                    icon: "layers",
+                  },
+                  {
+                    label: "3 ou mais clientes atendidos",
+                    done: progresso.totalClientes >= 3,
+                    icon: "groups",
+                  },
+                ].map((marco) => (
+                  <div
+                    key={marco.label}
+                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                      marco.done
+                        ? "bg-green-50 border-green-100 text-green-700"
+                        : "bg-slate-50 border-slate-100 text-slate-400"
+                    }`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-[18px] shrink-0 ${marco.done ? "text-green-500" : "text-slate-300"}`}
+                      style={{ fontVariationSettings: marco.done ? "'FILL' 1" : "'FILL' 0" }}
+                    >
+                      {marco.done ? "check_circle" : marco.icon}
+                    </span>
+                    <span className="text-xs font-bold leading-tight">{marco.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </section>

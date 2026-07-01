@@ -8,6 +8,39 @@ import { useEffect, useState } from "react";
 // Definição das Ferramentas — disponivel:false = em breve (sem rota criada)
 const TOOLS_DATA = [
   {
+    id: 20,
+    category: "Atendimento Especializado",
+    iconCategory: "psychology_alt",
+    title: "Atendimento Comportamental",
+    icon: "psychology_alt",
+    description:
+      "Diagnóstico completo de competências comportamentais: Proatividade, Autoconfiança, Gestão do Tempo, Flexibilidade e Inteligência Emocional. Gera relatório PDF com plano de ação.",
+    link: "/ferramentas/comportamental",
+    disponivel: true,
+  },
+  {
+    id: 21,
+    category: "Atendimento Especializado",
+    iconCategory: "psychology_alt",
+    title: "Atendimento — Liderança",
+    icon: "supervisor_account",
+    description:
+      "Avalie as competências de liderança: Estilo de Liderança, Comunicação, Tomada de Decisão, Gestão de Conflitos e Motivação. Relatório PDF com áreas de melhoria.",
+    link: "/ferramentas/lideranca",
+    disponivel: true,
+  },
+  {
+    id: 22,
+    category: "Atendimento Especializado",
+    iconCategory: "psychology_alt",
+    title: "Atendimento — Gestão de Pessoas",
+    icon: "groups_3",
+    description:
+      "Diagnóstico de maturidade em Gestão de Pessoas: Recrutamento, Treinamento, Engajamento, Desempenho e Benefícios. Identifica gaps e gera plano de ação exportável.",
+    link: "/ferramentas/gestao-pessoas",
+    disponivel: true,
+  },
+  {
     id: 4,
     category: "Diagnóstico & Clima",
     iconCategory: "analytics",
