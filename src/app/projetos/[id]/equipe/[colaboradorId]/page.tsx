@@ -193,7 +193,7 @@ export default function RelatorioPsicometricoPage() {
       { letter: "C", name: "CONFORMIDADE (C)", val: disc.C, target: targets.C }
     ];
     const comparisonChartsHtml = profiles.map(p => {
-      const adapt = Math.round((p.val + p.target) / 2);
+      const adapt = Math.max(0, Math.min(100, Math.round(p.val + (p.val - p.target))));
       return `
         <div style="margin-bottom: 18px; page-break-inside: avoid;">
           <div style="font-size: 13px; font-weight: bold; color: #1e293b; margin-bottom: 6px;">${p.name}</div>

@@ -6,7 +6,16 @@ import {
   calcularPontuacaoDisc,
   calcularExigenciaMeio,
   derivarPerfilDisc,
+  calcularCompetenciasDisc,
+  calcularAderencia,
+  getInteracaoMeioFeedback,
 } from "@/lib/disc-utils";
+import {
+  DISC_COMBINATIONS,
+  DISC_SINGLE_PROFILES,
+  DISC_PROFILE_DETAILS,
+  DISC_COMPETENCIES_DESC,
+} from "@/lib/disc-data";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -152,6 +161,7 @@ function gerarHTMLRelatorioDisc(av: AvaliacaoDISC): string {
   const respostas = av.js_respostas || {};
   const scores = calcularPontuacaoDisc(respostas);
   const exigencia = calcularExigenciaMeio(respostas);
+  const competencies = calcularCompetenciasDisc(respostas);
   const perfil = derivarPerfilDisc(scores, respostas);
 
   const letraPrincipal = perfil[0] as "D" | "I" | "S" | "C";
@@ -180,7 +190,207 @@ function gerarHTMLRelatorioDisc(av: AvaliacaoDISC): string {
     return `<span style="color:${i?.cor || '#064384'}; font-weight:900;">${l}</span>`;
   }).join(" · ");
 
-  const observacoes = (av.ds_observacao || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const code = perfil || "";
+  const letterToNumber: Record<string, string> = { D: "1", I: "2", S: "3", C: "4" };
+  const numericCode = code.split("").map(l => letterToNumber[l] || "").join("");
+  const combinationText = DISC_COMBINATIONS[numericCode] || "";
+  const primaryLetter = code[0] || "D";
+  const singleProfileText = DISC_SINGLE_PROFILES[primaryLetter] || "";
+  const profileDescription = [combinationText, singleProfileText].filter(Boolean).join("\n\n");
+
+  const feedbackText = getInteracaoMeioFeedback(scores, exigencia);
+
+  const letters = code.split("");
+  const characteristicsHtml = letters.map(letter => {
+    const details = DISC_PROFILE_DETAILS[letter];
+    if (!details) return "";
+    const label = letter === "D" ? "DOMINÂNCIA (D)" : letter === "I" ? "INFLUÊNCIA (I)" : letter === "S" ? "ESTABILIDADE (S)" : "CONFORMIDADE (C)";
+    const colorClass = letter === "D" ? "#dc2626" : letter === "I" ? "#d97706" : letter === "S" ? "#16a34a" : "#2563eb";
+    const bgLight = letter === "D" ? "#fef2f2" : letter === "I" ? "#fffbeb" : letter === "S" ? "#f0fdf4" : "#eff6ff";
+    const borderLight = letter === "D" ? "#fecaca" : letter === "I" ? "#fef3c7" : letter === "S" ? "#bbf7d0" : "#bfdbfe";
+    return `
+      <div style="flex: 1; min-width: 0; border: 1px solid ${borderLight}; border-radius: 12px; padding: 18px; background: ${bgLight}; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <h3 style="font-size: 14px; font-weight: 800; color: ${colorClass}; border-bottom: 2px solid ${borderLight}; padding-bottom: 6px; margin-top: 0; margin-bottom: 12px; text-transform: uppercase;">${label}</h3>
+          
+          <h4 style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; margin-top: 0;">Palavras-chave</h4>
+          <ul style="padding-left: 14px; margin-bottom: 12px; font-size: 11.5px; color: #334155; line-height: 1.35;">
+            ${details.keywords.slice(0, 5).map(w => `<li>${w}</li>`).join("")}
+          </ul>
+
+          <h4 style="font-size: 11px; font-weight: 700; color: #16a34a; text-transform: uppercase; margin-bottom: 4px; margin-top: 0;">Pontos Fortes</h4>
+          <ul style="padding-left: 14px; margin-bottom: 12px; font-size: 11.5px; color: #15803d; line-height: 1.35;">
+            ${details.strengths.slice(0, 5).map(w => `<li>${w}</li>`).join("")}
+          </ul>
+
+          <h4 style="font-size: 11px; font-weight: 700; color: #ea580c; text-transform: uppercase; margin-bottom: 4px; margin-top: 0;">Pontos a Desenvolver</h4>
+          <ul style="padding-left: 14px; margin-bottom: 12px; font-size: 11.5px; color: #c2410c; line-height: 1.35;">
+            ${details.develop.slice(0, 5).map(w => `<li>${w}</li>`).join("")}
+          </ul>
+        </div>
+
+        <div>
+          <h4 style="font-size: 11px; font-weight: 700; color: #dc2626; text-transform: uppercase; margin-bottom: 4px; margin-top: 0;">Sob Pressão</h4>
+          <p style="font-size: 11.5px; color: #b91c1c; font-weight: 600; margin: 0; line-height: 1.35;">
+            ${details.pressure[0] || ""}
+          </p>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const comparisonChartsHtml = [
+    { letter: "D", name: "DOMINÂNCIA (D)", val: pctD, target: epD },
+    { letter: "I", name: "INFLUÊNCIA (I)", val: pctI, target: epI },
+    { letter: "S", name: "ESTABILIDADE (S)", val: pctS, target: epS },
+    { letter: "C", name: "CONFORMIDADE (C)", val: pctC, target: epC }
+  ].map(p => {
+    const adapt = Math.max(0, Math.min(100, Math.round(p.val + (p.val - p.target))));
+    return `
+      <div style="margin-bottom: 18px; box-sizing: border-box;">
+        <div style="font-size: 13px; font-weight: bold; color: #1e293b; margin-bottom: 6px;">${p.name}</div>
+        
+        <div style="display: flex; flex-direction: column; gap: 6px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 16px; border-radius: 8px; box-sizing: border-box;">
+          <!-- Natural -->
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 10px; font-weight: bold; width: 90px; color: #064384;">Perfil Atual:</span>
+            <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; position: relative;">
+              <div style="width: ${p.val}%; height: 100%; background: #064384; border-radius: 5px;"></div>
+            </div>
+            <span style="font-size: 11px; font-weight: bold; width: 35px; text-align: right; color: #064384;">${p.val}%</span>
+          </div>
+          
+          <!-- Exigência -->
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 10px; font-weight: bold; width: 90px; color: #dc2626;">Exigência:</span>
+            <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; position: relative;">
+              <div style="width: ${p.target}%; height: 100%; background: #dc2626; border-radius: 5px;"></div>
+            </div>
+            <span style="font-size: 11px; font-weight: bold; width: 35px; text-align: right; color: #dc2626;">${p.target}%</span>
+          </div>
+          
+          <!-- Adaptado -->
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 10px; font-weight: bold; width: 90px; color: #8B5CF6;">Adaptado:</span>
+            <div style="flex: 1; height: 10px; background: #e2e8f0; border-radius: 5px; position: relative;">
+              <div style="width: ${adapt}%; height: 100%; background: #8B5CF6; border-radius: 5px;"></div>
+            </div>
+            <span style="font-size: 11px; font-weight: bold; width: 35px; text-align: right; color: #8B5CF6;">${adapt}%</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  const renderCompetenciesSubPage = (letra: "D" | "I" | "S" | "C", title: string, color: string, pageNum: number) => {
+    const groupComps = competencies.filter(c => c.letra === letra);
+    const compsHtml = groupComps.map(c => {
+      const desc = DISC_COMPETENCIES_DESC[c.label] || "";
+      return `
+        <div style="border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 16px; background: #f8fafc; box-sizing: border-box; margin-bottom: 12px; page-break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 800; color: #1e293b; font-size: 13px; margin-bottom: 6px;">
+            <span>${c.label}</span>
+            <span style="font-size: 11px; color: #64748b; font-weight: 700;">Atual: ${c.valor}% / Exigência: ${c.alvo}%</span>
+          </div>
+          <div style="position: relative; height: 10px; background: #e2e8f0; border-radius: 5px; width: 100%; margin-bottom: 6px; overflow: hidden;">
+            <div style="position: absolute; left: 0; top: 0; height: 100%; background: #fee2e2; border-left: 2px solid #EF4444; width: ${c.alvo}%;"></div>
+            <div style="position: absolute; left: 0; top: 2px; height: 6px; background: #064384; width: ${c.valor}%; border-radius: 3px;"></div>
+          </div>
+          <p style="color: #475569; font-size: 11.5px; line-height: 1.4; margin: 0; text-align: justify;">${desc}</p>
+        </div>
+      `;
+    }).join("");
+
+    return `
+      <!-- PAGE ${pageNum}: COMPETENCIAS ${letra} -->
+      <div class="page page-break">
+        <div class="page-header">
+          <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+          <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+        </div>
+        
+        <div class="page-content">
+          <div class="section-title"><span class="section-number">${pageNum - 1}</span>Competências do Perfil Comportamental</div>
+          <h2 class="section-heading" style="color: ${color};">${title}</h2>
+          
+          <div style="margin-top: 15px; flex: 1;">
+            ${compsHtml}
+          </div>
+        </div>
+
+        <div class="page-footer">
+          <span>Candidato: ${av.nm_avaliado}</span>
+          <span>Página ${pageNum} de 12</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const renderPage12 = () => {
+    const groupComps = competencies.filter(c => c.letra === "C");
+    const compsHtml = groupComps.map(c => {
+      const desc = DISC_COMPETENCIES_DESC[c.label] || "";
+      return `
+        <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; background: #f8fafc; box-sizing: border-box; margin-bottom: 8px; page-break-inside: avoid;">
+          <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 800; color: #1e293b; font-size: 12px; margin-bottom: 4px;">
+            <span>${c.label}</span>
+            <span style="font-size: 10px; color: #64748b; font-weight: 700;">Atual: ${c.valor}% / Exigência: ${c.alvo}%</span>
+          </div>
+          <div style="position: relative; height: 8px; background: #e2e8f0; border-radius: 4px; width: 100%; margin-bottom: 4px; overflow: hidden;">
+            <div style="position: absolute; left: 0; top: 0; height: 100%; background: #fee2e2; border-left: 2px solid #EF4444; width: ${c.alvo}%;"></div>
+            <div style="position: absolute; left: 0; top: 2px; height: 4px; background: #064384; width: ${c.valor}%; border-radius: 2px;"></div>
+          </div>
+          <p style="color: #475569; font-size: 11px; line-height: 1.35; margin: 0; text-align: justify;">${desc}</p>
+        </div>
+      `;
+    }).join("");
+
+    const obsText = (av.ds_observacao || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+    return `
+      <!-- PAGE 12: COMPETENCIAS C & PDI -->
+      <div class="page page-break">
+        <div class="page-header">
+          <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+          <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+        </div>
+        
+        <div class="page-content" style="justify-content: space-between;">
+          <div>
+            <div class="section-title"><span class="section-number">11</span>Competências do Perfil Comportamental</div>
+            <h2 class="section-heading" style="color: #2563eb; margin-bottom: 10px;">Conformidade (C)</h2>
+            <div style="margin-top: 10px;">
+              ${compsHtml}
+            </div>
+          </div>
+
+          <div style="margin-top: 15px; border-top: 2px solid #e2e8f0; padding-top: 15px;">
+            <div class="section-title"><span class="section-number">12</span>Plano de Desenvolvimento Individual</div>
+            <h2 class="section-heading" style="font-size: 16px; margin-bottom: 8px;">Observações do Consultor & PDI</h2>
+            ${obsText ? `
+            <div class="pdi-box" style="padding: 12px 16px; margin: 0;">
+              <p class="pdi-content" style="font-size: 11.5px; line-height: 1.4; margin: 0;">${obsText}</p>
+            </div>
+            ` : `
+            <div class="pdi-box" style="padding: 12px 16px; margin: 0; min-height: 60px;">
+              <p style="color:#94a3b8; font-size:11.5px; font-style:italic; margin: 0;">Nenhuma observação registrada pelo consultor.</p>
+            </div>
+            `}
+          </div>
+        </div>
+
+        <div class="page-footer">
+          <span>Candidato: ${av.nm_avaliado}</span>
+          <span>Página 12 de 12</span>
+        </div>
+      </div>
+    `;
+  };
+
+  const page9 = renderCompetenciesSubPage("D", "Dominância (D)", "#dc2626", 9);
+  const page10 = renderCompetenciesSubPage("I", "Influência (I)", "#d97706", 10);
+  const page11 = renderCompetenciesSubPage("S", "Estabilidade (S)", "#16a34a", 11);
+  const page12 = renderPage12();
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -188,413 +398,553 @@ function gerarHTMLRelatorioDisc(av: AvaliacaoDISC): string {
 <meta charset="UTF-8"/>
 <title>Relatório DISC — ${av.nm_avaliado}</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
   @page { size: A4; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; line-height: 1.6; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Inter', sans-serif; color: #1e293b; line-height: 1.5; -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #f1f5f9; }
+  
+  .page {
+    width: 210mm;
+    height: 297mm;
+    margin: 20px auto;
+    padding: 20mm;
+    background: white;
+    box-sizing: border-box;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .page-break {
+    page-break-after: always;
+  }
+  
+  @media print {
+    body {
+      background: white;
+      padding: 0;
+      margin: 0;
+    }
+    .page {
+      margin: 0;
+      box-shadow: none;
+      page-break-after: always;
+      page-break-inside: avoid;
+      height: 297mm;
+      width: 210mm;
+    }
+    .no-print {
+      display: none !important;
+    }
+  }
 
   /* ── CAPA ── */
-  .cover { width: 210mm; min-height: 297mm; background: linear-gradient(135deg, #064384 0%, #0a5caa 60%, #1d7fd4 100%); display: flex; flex-direction: column; justify-content: space-between; padding: 60px 50px; page-break-after: always; }
+  .cover {
+    width: 210mm;
+    height: 297mm;
+    background: linear-gradient(135deg, #064384 0%, #0a5caa 60%, #1d7fd4 100%);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 25mm 20mm;
+    box-sizing: border-box;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  @media print {
+    .cover {
+      margin: 0;
+      height: 297mm;
+      width: 210mm;
+      page-break-after: always;
+      page-break-inside: avoid;
+    }
+  }
+
   .cover-logo { display: flex; align-items: center; gap: 12px; }
   .cover-logo-icon { width: 48px; height: 48px; background: rgba(255,255,255,0.15); border-radius: 12px; display: flex; align-items: center; justify-content: center; }
   .cover-logo-text { color: white; font-size: 22px; font-weight: 900; letter-spacing: 2px; }
-  .cover-center { text-align: center; }
-  .cover-badge { display: inline-block; background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.9); font-size: 11px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; padding: 8px 20px; border-radius: 30px; margin-bottom: 32px; }
+  .cover-center { text-align: center; margin-top: auto; margin-bottom: auto; }
+  .cover-badge { display: inline-block; background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.9); font-size: 11px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; padding: 8px 20px; border-radius: 30px; margin-bottom: 24px; }
   .cover-title { color: white; font-size: 52px; font-weight: 900; line-height: 1.1; margin-bottom: 12px; }
-  .cover-subtitle { color: rgba(255,255,255,0.75); font-size: 20px; font-weight: 400; margin-bottom: 48px; }
-  .cover-card { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 28px 36px; max-width: 480px; margin: 0 auto; }
-  .cover-card-label { color: rgba(255,255,255,0.6); font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
-  .cover-card-value { color: white; font-size: 20px; font-weight: 800; margin-bottom: 16px; }
+  .cover-subtitle { color: rgba(255,255,255,0.75); font-size: 20px; font-weight: 400; margin-bottom: 36px; }
+  
+  .cover-card { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); border-radius: 16px; padding: 24px 32px; max-width: 480px; margin: 0 auto; text-align: left; }
+  .cover-card-label { color: rgba(255,255,255,0.6); font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .cover-card-value { color: white; font-size: 18px; font-weight: 800; margin-bottom: 14px; }
   .cover-card-value:last-child { margin-bottom: 0; }
   .cover-footer { text-align: center; color: rgba(255,255,255,0.5); font-size: 11px; }
 
   /* ── PÁGINAS INTERNAS ── */
-  .page { width: 210mm; min-height: 297mm; padding: 40px 50px; page-break-after: always; }
-  .page:last-child { page-break-after: auto; }
-  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; padding-bottom: 16px; border-bottom: 2px solid #e2e8f0; }
-  .page-header-logo { font-size: 13px; font-weight: 900; color: #064384; letter-spacing: 1px; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+  .page-logo-text { font-size: 12px; font-weight: 900; color: #064384; letter-spacing: 1.5px; }
   .page-header-info { font-size: 11px; color: #94a3b8; font-weight: 600; }
+  
+  .page-content { flex: 1; display: flex; flex-direction: column; }
 
-  .section-title { font-size: 11px; font-weight: 800; color: #064384; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 8px; }
-  .section-number { display: inline-block; background: #064384; color: white; font-size: 10px; font-weight: 900; width: 22px; height: 22px; border-radius: 50%; text-align: center; line-height: 22px; margin-right: 8px; }
-  h2.section-heading { font-size: 24px; font-weight: 900; color: #0f172a; margin-bottom: 20px; }
-  p.body-text { font-size: 14px; color: #475569; line-height: 1.7; margin-bottom: 12px; }
+  .section-title { font-size: 10.5px; font-weight: 800; color: #064384; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .section-number { display: inline-block; background: #064384; color: white; font-size: 9.5px; font-weight: 900; width: 20px; height: 20px; border-radius: 50%; text-align: center; line-height: 20px; margin-right: 8px; }
+  h2.section-heading { font-size: 22px; font-weight: 900; color: #0f172a; margin-bottom: 16px; }
+  p.body-text { font-size: 13px; color: #475569; line-height: 1.6; margin-bottom: 12px; text-align: justify; }
 
   /* ── DISC BARS ── */
-  .disc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 24px 0; }
+  .disc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
   .disc-item { }
-  .disc-label { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin-bottom: 6px; }
-  .disc-bar-bg { height: 28px; background: #f1f5f9; border-radius: 8px; overflow: hidden; }
-  .disc-bar-fill { height: 100%; border-radius: 8px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; color: white; font-size: 12px; font-weight: 900; }
+  .disc-label { display: flex; justify-content: space-between; font-size: 12px; font-weight: 800; margin-bottom: 5px; }
+  .disc-bar-bg { height: 24px; background: #f1f5f9; border-radius: 6px; overflow: hidden; }
+  .disc-bar-fill { height: 100%; border-radius: 6px; display: flex; align-items: center; justify-content: flex-end; padding-right: 10px; color: white; font-size: 11.5px; font-weight: 900; }
 
   /* ── LISTS ── */
-  .bullet-list { list-style: none; margin: 16px 0; }
-  .bullet-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 14px; color: #334155; margin-bottom: 10px; }
+  .bullet-list { list-style: none; margin: 12px 0; }
+  .bullet-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #334155; margin-bottom: 8px; }
   .bullet-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
 
   /* ── CARDS ── */
-  .card { background: #f8fafc; border-left: 5px solid #064384; padding: 20px 24px; border-radius: 0 12px 12px 0; margin: 16px 0; }
+  .card { background: #f8fafc; border-left: 4px solid #064384; padding: 16px 20px; border-radius: 0 10px 10px 0; margin: 12px 0; }
   .card.card-orange { border-left-color: #f59e0b; }
   .card.card-green { border-left-color: #10b981; }
   .card.card-red { border-left-color: #ef4444; }
-  .card-label { font-size: 10px; font-weight: 800; color: #94a3b8; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
-  .card-content { font-size: 14px; color: #334155; line-height: 1.6; }
+  .card-label { font-size: 9.5px; font-weight: 800; color: #94a3b8; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 4px; }
+  .card-content { font-size: 13px; color: #334155; line-height: 1.5; text-align: justify; }
 
   /* ── COMPARISON TABLE ── */
-  .compare-table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 13px; }
-  .compare-table th { background: #064384; color: white; padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
-  .compare-table td { padding: 10px 14px; border-bottom: 1px solid #e2e8f0; color: #334155; }
+  .compare-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 12.5px; }
+  .compare-table th { background: #064384; color: white; padding: 8px 12px; text-align: left; font-size: 10.5px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; }
+  .compare-table td { padding: 8px 12px; border-bottom: 1px solid #e2e8f0; color: #334155; }
   .compare-table tr:nth-child(even) td { background: #f8fafc; }
 
   /* ── PDI ── */
-  .pdi-box { background: white; border: 2px dashed #cbd5e1; padding: 24px; border-radius: 12px; margin: 16px 0; }
-  .pdi-content { font-size: 14px; color: #334155; white-space: pre-wrap; line-height: 1.7; }
+  .pdi-box { background: white; border: 2px dashed #cbd5e1; padding: 16px 20px; border-radius: 10px; margin: 12px 0; }
+  .pdi-content { font-size: 13px; color: #334155; white-space: pre-wrap; line-height: 1.6; }
 
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page-footer {
+    position: absolute;
+    bottom: 15mm;
+    left: 20mm;
+    right: 20mm;
+    font-size: 10px;
+    color: #94a3b8;
+    font-weight: 600;
+    border-top: 1px solid #e2e8f0;
+    padding-top: 6px;
+    display: flex;
+    justify-content: space-between;
   }
 </style>
 </head>
 <body>
 
-<!-- ────────────────── 1. CAPA ────────────────── -->
-<div class="cover">
-  <div class="cover-logo">
-    <div class="cover-logo-icon">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+  <!-- FLOATING BAR -->
+  <div class="no-print" style="position: fixed; top: 0; left: 0; right: 0; background: #064384; color: white; padding: 12px 24px; display: flex; justify-content: space-between; align-items: center; z-index: 9999; font-family: 'Inter', sans-serif; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+    <span style="font-size: 13px; font-weight: 500;">
+      ✍️ <strong>Dica:</strong> Você pode clicar e editar os campos <strong>Objetivo</strong> e <strong>Data para o Objetivo</strong> na capa antes de imprimir.
+    </span>
+    <button onclick="window.print()" style="background: #FF8323; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; transition: background 0.2s;">
+      Imprimir / Salvar PDF
+    </button>
+  </div>
+
+  <!-- ────────────────── 1. CAPA ────────────────── -->
+  <div class="cover">
+    <div class="cover-logo">
+      <div class="cover-logo-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      </div>
+      <span class="cover-logo-text">RESPONSA</span>
     </div>
-    <span class="cover-logo-text">RESPONSA</span>
-  </div>
 
-  <div class="cover-center">
-    <div class="cover-badge">Relatório de Perfil Comportamental</div>
-    <div class="cover-title">Mapeamento<br/>DISC</div>
-    <div class="cover-subtitle">Análise Comportamental Individual</div>
-    <div class="cover-card">
-      <div class="cover-card-label">Avaliado(a)</div>
-      <div class="cover-card-value">${av.nm_avaliado}</div>
-      <div class="cover-card-label">Empresa / Organização</div>
-      <div class="cover-card-value">${av.nm_empresa || "—"}</div>
-      <div class="cover-card-label">Data do Relatório</div>
-      <div class="cover-card-value" style="margin-bottom:0;">${dataFormatada}</div>
-    </div>
-  </div>
-
-  <div class="cover-footer">
-    Metodologia DISC &nbsp;·&nbsp; Gerado pela Plataforma RESPONSA &nbsp;·&nbsp; Confidencial
-  </div>
-</div>
-
-<!-- ────────────────── 2. SOBRE O DISC ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span class="page-logo-text" style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
-  </div>
-
-  <div class="section-title"><span class="section-number">2</span>Sobre a Metodologia DISC</div>
-  <h2 class="section-heading">O que é o DISC?</h2>
-  <p class="body-text">
-    A metodologia DISC é uma das ferramentas de avaliação comportamental mais utilizadas no mundo. Desenvolvida a partir das pesquisas do psicólogo William Moulton Marston, publicadas em 1928, ela identifica quatro fatores comportamentais que influenciam como as pessoas agem em diferentes situações.
-  </p>
-  <p class="body-text">
-    O DISC não mede inteligência, habilidades técnicas ou maturidade emocional. Ele descreve <strong>comportamentos observáveis</strong> — como a pessoa se comunica, toma decisões, reage à pressão e interage com o ambiente ao redor.
-  </p>
-
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:24px 0;">
-    <div style="background:#fef2f2; border-radius:12px; padding:20px;">
-      <div style="font-size:28px; font-weight:900; color:#ef4444;">D</div>
-      <div style="font-size:14px; font-weight:800; color:#1e293b; margin:4px 0;">Dominância</div>
-      <div style="font-size:12px; color:#64748b;">Como você responde a problemas, desafios e resultados.</div>
-    </div>
-    <div style="background:#fffbeb; border-radius:12px; padding:20px;">
-      <div style="font-size:28px; font-weight:900; color:#f59e0b;">I</div>
-      <div style="font-size:14px; font-weight:800; color:#1e293b; margin:4px 0;">Influência</div>
-      <div style="font-size:12px; color:#64748b;">Como você influencia pessoas ao seu redor.</div>
-    </div>
-    <div style="background:#f0fdf4; border-radius:12px; padding:20px;">
-      <div style="font-size:28px; font-weight:900; color:#10b981;">S</div>
-      <div style="font-size:14px; font-weight:800; color:#1e293b; margin:4px 0;">Estabilidade</div>
-      <div style="font-size:12px; color:#64748b;">Como você responde ao ritmo e consistência do ambiente.</div>
-    </div>
-    <div style="background:#eff6ff; border-radius:12px; padding:20px;">
-      <div style="font-size:28px; font-weight:900; color:#3b82f6;">C</div>
-      <div style="font-size:14px; font-weight:800; color:#1e293b; margin:4px 0;">Conformidade</div>
-      <div style="font-size:12px; color:#64748b;">Como você responde a regras e procedimentos do ambiente.</div>
-    </div>
-  </div>
-
-  <p class="body-text">
-    Este relatório apresenta o perfil de <strong>${av.nm_avaliado}</strong> com base nas suas respostas ao questionário DISC. As informações são confidenciais e devem ser usadas para desenvolvimento profissional e autoconhecimento.
-  </p>
-</div>
-
-<!-- ────────────────── 3. RESULTADOS ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
-  </div>
-
-  <div class="section-title"><span class="section-number">3</span>Seus Resultados</div>
-  <h2 class="section-heading">Intensidade dos Fatores Comportamentais</h2>
-  <p class="body-text">O gráfico abaixo representa a intensidade de cada fator do seu perfil DISC com base nas suas respostas ao questionário (Perfil Natural).</p>
-
-  <div class="disc-grid">
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#ef4444;font-weight:900;">D — Dominância</span><span>${pctD}%</span></div>
-      <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctD}%; background:#ef4444;">${pctD}%</div></div>
-    </div>
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#f59e0b;font-weight:900;">I — Influência</span><span>${pctI}%</span></div>
-      <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctI}%; background:#f59e0b;">${pctI}%</div></div>
-    </div>
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#10b981;font-weight:900;">S — Estabilidade</span><span>${pctS}%</span></div>
-      <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctS}%; background:#10b981;">${pctS}%</div></div>
-    </div>
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#3b82f6;font-weight:900;">C — Conformidade</span><span>${pctC}%</span></div>
-      <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctC}%; background:#3b82f6;">${pctC}%</div></div>
-    </div>
-  </div>
-
-  <table class="compare-table" style="margin-top:32px;">
-    <thead>
-      <tr><th>Fator</th><th>Perfil Natural (Atual)</th><th>Exigência do Meio</th><th>Variação</th></tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td><strong style="color:#ef4444;">D — Dominância</strong></td>
-        <td>${pctD}%</td><td>${epD}%</td>
-        <td style="font-weight:800; color:${epD - pctD > 5 ? '#dc2626' : epD - pctD < -5 ? '#2563eb' : '#16a34a'};">${epD - pctD > 0 ? '+' : ''}${epD - pctD}pp</td>
-      </tr>
-      <tr>
-        <td><strong style="color:#f59e0b;">I — Influência</strong></td>
-        <td>${pctI}%</td><td>${epI}%</td>
-        <td style="font-weight:800; color:${epI - pctI > 5 ? '#dc2626' : epI - pctI < -5 ? '#2563eb' : '#16a34a'};">${epI - pctI > 0 ? '+' : ''}${epI - pctI}pp</td>
-      </tr>
-      <tr>
-        <td><strong style="color:#10b981;">S — Estabilidade</strong></td>
-        <td>${pctS}%</td><td>${epS}%</td>
-        <td style="font-weight:800; color:${epS - pctS > 5 ? '#dc2626' : epS - pctS < -5 ? '#2563eb' : '#16a34a'};">${epS - pctS > 0 ? '+' : ''}${epS - pctS}pp</td>
-      </tr>
-      <tr>
-        <td><strong style="color:#3b82f6;">C — Conformidade</strong></td>
-        <td>${pctC}%</td><td>${epC}%</td>
-        <td style="font-weight:800; color:${epC - pctC > 5 ? '#dc2626' : epC - pctC < -5 ? '#2563eb' : '#16a34a'};">${epC - pctC > 0 ? '+' : ''}${epC - pctC}pp</td>
-      </tr>
-    </tbody>
-  </table>
-  <p style="font-size:11px; color:#94a3b8; margin-top:8px;">Variação: diferença entre o que o meio exige e o perfil natural. Diferenças acima de 5pp podem gerar desconforto.</p>
-</div>
-
-<!-- ────────────────── 4. PERFIL PREDOMINANTE ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
-  </div>
-
-  <div class="section-title"><span class="section-number">4</span>Perfil Comportamental Predominante</div>
-  <h2 class="section-heading">${info.nome}</h2>
-
-  <div style="background: linear-gradient(135deg, #064384, #0a5caa); color:white; border-radius:16px; padding:28px 32px; margin:20px 0; display:flex; align-items:center; gap:24px;">
-    <div style="font-size:72px; font-weight:900; line-height:1; color:${info.cor}; text-shadow:0 0 20px rgba(255,255,255,0.3);">${perfil}</div>
-    <div>
-      <div style="font-size:11px; font-weight:800; color:rgba(255,255,255,0.6); letter-spacing:2px; text-transform:uppercase; margin-bottom:8px;">Perfil Identificado</div>
-      <div style="font-size:20px; font-weight:800; color:white; line-height:1.3;">${info.nome}</div>
-    </div>
-  </div>
-
-  <p class="body-text">${info.descricao}</p>
-
-  <div class="card" style="margin-top:24px;">
-    <div class="card-label">Como interpretar</div>
-    <div class="card-content">O perfil predominante ${perfil} representa o(s) fator(es) comportamental(is) com maior expressão natural de ${av.nm_avaliado}. Isso não significa ausência dos outros fatores — todos coexistem, mas em intensidades diferentes.</div>
-  </div>
-</div>
-
-<!-- ────────────────── 5. PONTOS FORTES ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
-  </div>
-
-  <div class="section-title"><span class="section-number">5</span>Pontos Fortes</div>
-  <h2 class="section-heading">Seus Diferenciais Naturais</h2>
-  <p class="body-text">Com base no perfil predominante <strong>${perfil}</strong>, os pontos fortes naturais de ${av.nm_avaliado} incluem:</p>
-
-  <ul class="bullet-list">
-    ${info.pontosFortess.map(p => `<li><div class="bullet-dot" style="background:${info.cor};"></div><span>${p}</span></li>`).join("")}
-  </ul>
-
-  <!-- ────────────────── 6. PONTOS DE ATENÇÃO ────────────────── -->
-  <div class="section-title" style="margin-top:36px;"><span class="section-number">6</span>Possíveis Pontos de Atenção</div>
-  <h2 class="section-heading">Áreas para Desenvolvimento</h2>
-  <p class="body-text">Esses pontos não são fraquezas fixas, mas tendências comportamentais que, quando reconhecidas, podem ser gerenciadas conscientemente:</p>
-
-  <ul class="bullet-list">
-    ${info.pontosAtencao.map(p => `<li><div class="bullet-dot" style="background:#f59e0b;"></div><span>${p}</span></li>`).join("")}
-  </ul>
-</div>
-
-<!-- ────────────────── 7. MOTIVADORES ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
-  </div>
-
-  <div class="section-title"><span class="section-number">7</span>O que Motiva este Perfil</div>
-  <h2 class="section-heading">Motivadores e Engajadores</h2>
-  <p class="body-text">Para manter ${av.nm_avaliado} engajado(a) e com alta performance, é importante considerar os seguintes motivadores:</p>
-
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0;">
-    ${info.motivadores.map((m, i) => `
-    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px 20px; display:flex; align-items:center; gap:12px;">
-      <div style="width:32px; height:32px; background:${info.cor}; border-radius:8px; display:flex; align-items:center; justify-content:center; color:white; font-weight:900; font-size:14px; flex-shrink:0;">${i + 1}</div>
-      <span style="font-size:13px; color:#334155; font-weight:600;">${m}</span>
-    </div>`).join("")}
-  </div>
-
-  <!-- ────────────────── 8. COMUNICAÇÃO ────────────────── -->
-  <div class="section-title" style="margin-top:36px;"><span class="section-number">8</span>Estilo de Comunicação</div>
-  <h2 class="section-heading">Como se Comunicar com este Perfil</h2>
-  <div class="card card-orange">
-    <div class="card-label">Dica para líderes e colegas</div>
-    <div class="card-content">${info.comunicacao}</div>
-  </div>
-</div>
-
-<!-- ────────────────── 9. AMBIENTE IDEAL ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
-  </div>
-
-  <div class="section-title"><span class="section-number">9</span>Ambiente de Trabalho Ideal</div>
-  <h2 class="section-heading">Condições que Potencializam o Desempenho</h2>
-  <div class="card card-green">
-    <div class="card-label">Contexto ideal de trabalho</div>
-    <div class="card-content">${info.ambienteIdeal}</div>
-  </div>
-
-  <!-- ────────────────── 10. LIDERANÇA ────────────────── -->
-  <div class="section-title" style="margin-top:36px;"><span class="section-number">10</span>Estilo de Liderança e Tomada de Decisão</div>
-  <h2 class="section-heading">Como este Perfil Lidera e Decide</h2>
-
-  <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin:20px 0;">
-    <div class="card">
-      <div class="card-label">Estilo de Liderança</div>
-      <div class="card-content">
-        ${letraPrincipal === "D" ? "Diretivo e orientado a resultados. Lidera pelo exemplo e pela autoridade. Espera execução rápida e eficiente." : ""}
-        ${letraPrincipal === "I" ? "Inspirador e carismático. Lidera pelo entusiasmo e conexão emocional. Motiva a equipe com energia e otimismo." : ""}
-        ${letraPrincipal === "S" ? "Colaborativo e apoiador. Lidera pela confiança e estabilidade. Constrói equipes coesas e harmoniosas." : ""}
-        ${letraPrincipal === "C" ? "Analítico e metódico. Lidera pela competência técnica e rigor. Exige qualidade e precisão da equipe." : ""}
+    <div class="cover-center">
+      <div class="cover-badge">Relatório de Perfil Comportamental</div>
+      <div class="cover-title">Mapeamento<br/>DISC</div>
+      <div class="cover-subtitle">Análise Comportamental Individual</div>
+      
+      <div class="cover-card">
+        <div class="cover-card-label">Avaliado(a)</div>
+        <div class="cover-card-value">${av.nm_avaliado}</div>
+        <div class="cover-card-label">Empresa / Organização</div>
+        <div class="cover-card-value">${av.nm_empresa || "—"}</div>
+        <div class="cover-card-label">Data do Relatório</div>
+        <div class="cover-card-value">${dataFormatada}</div>
+        
+        <div style="border-top: 1px solid rgba(255,255,255,0.2); margin-top: 16px; padding-top: 16px;">
+          <div class="cover-card-label">Objetivo do Relatório (Clique para editar)</div>
+          <div contenteditable="true" style="color: white; font-size: 14px; font-weight: 600; outline: none; border: 1px dashed rgba(255,255,255,0.3); padding: 8px; border-radius: 8px; background: rgba(255,255,255,0.05); min-height: 40px;">Desenvolvimento Individual de Carreira e feedback comportamental.</div>
+          
+          <div class="cover-card-label" style="margin-top: 12px;">Data Prevista para o Objetivo (Clique para editar)</div>
+          <div contenteditable="true" style="color: white; font-size: 14px; font-weight: 600; outline: none; border: 1px dashed rgba(255,255,255,0.3); padding: 8px; border-radius: 8px; background: rgba(255,255,255,0.05); min-height: 20px;">Dezembro de 2026</div>
+        </div>
       </div>
     </div>
-    <div class="card card-orange">
-      <div class="card-label">Tomada de Decisão</div>
-      <div class="card-content">
-        ${letraPrincipal === "D" ? "Rápido e decisivo. Baseia-se na intuição e no objetivo final. Não teme riscos quando necessário." : ""}
-        ${letraPrincipal === "I" ? "Intuitivo e baseado em pessoas. Considera o impacto nas relações. Pode ser impulsivo, mas reconsidera quando necessário." : ""}
-        ${letraPrincipal === "S" ? "Cauteloso e colaborativo. Prefere consenso e avalia o impacto nas pessoas. Demora mais, mas é consistente." : ""}
-        ${letraPrincipal === "C" ? "Analítico e baseado em dados. Avalia todas as variáveis antes de decidir. Busca a melhor solução possível." : ""}
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- ────────────────── 11. ADAPTAÇÃO AO MEIO ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
-  </div>
-
-  <div class="section-title"><span class="section-number">11</span>Adaptação ao Meio Ambiente</div>
-  <h2 class="section-heading">Perfil Natural vs. Exigência do Meio</h2>
-  <p class="body-text">Esta seção compara o perfil natural de ${av.nm_avaliado} com o que o ambiente de trabalho exige. Diferenças acima de 5 pontos percentuais podem indicar áreas de esforço adaptativo.</p>
-
-  <div class="disc-grid" style="margin:24px 0;">
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#ef4444;">D — Natural</span><span>${pctD}% → ${epD}%</span></div>
-      <div class="disc-bar-bg">
-        <div class="disc-bar-fill" style="width:${pctD}%; background:#ef4444; opacity:0.5;"></div>
-      </div>
-      <div class="disc-bar-bg" style="margin-top:4px;">
-        <div class="disc-bar-fill" style="width:${epD}%; background:#ef4444;"></div>
-      </div>
-    </div>
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#f59e0b;">I — Natural</span><span>${pctI}% → ${epI}%</span></div>
-      <div class="disc-bar-bg">
-        <div class="disc-bar-fill" style="width:${pctI}%; background:#f59e0b; opacity:0.5;"></div>
-      </div>
-      <div class="disc-bar-bg" style="margin-top:4px;">
-        <div class="disc-bar-fill" style="width:${epI}%; background:#f59e0b;"></div>
-      </div>
-    </div>
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#10b981;">S — Natural</span><span>${pctS}% → ${epS}%</span></div>
-      <div class="disc-bar-bg">
-        <div class="disc-bar-fill" style="width:${pctS}%; background:#10b981; opacity:0.5;"></div>
-      </div>
-      <div class="disc-bar-bg" style="margin-top:4px;">
-        <div class="disc-bar-fill" style="width:${epS}%; background:#10b981;"></div>
-      </div>
-    </div>
-    <div class="disc-item">
-      <div class="disc-label"><span style="color:#3b82f6;">C — Natural</span><span>${pctC}% → ${epC}%</span></div>
-      <div class="disc-bar-bg">
-        <div class="disc-bar-fill" style="width:${pctC}%; background:#3b82f6; opacity:0.5;"></div>
-      </div>
-      <div class="disc-bar-bg" style="margin-top:4px;">
-        <div class="disc-bar-fill" style="width:${epC}%; background:#3b82f6;"></div>
-      </div>
+    <div class="cover-footer">
+      Metodologia DISC &nbsp;·&nbsp; Gerado pela Plataforma RESPONSA &nbsp;·&nbsp; Confidencial
     </div>
   </div>
 
-  <p style="font-size:11px; color:#94a3b8; margin-top:4px;">Barra clara = Perfil Natural &nbsp;·&nbsp; Barra sólida = Exigência do Meio</p>
+  <!-- ────────────────── 2. SOBRE O DISC ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
 
-  <div class="card" style="margin-top:20px;">
-    <div class="card-label">Interpretação</div>
-    <div class="card-content">
-      Mudanças adaptativas acima de 5pp podem gerar desgaste ao longo do tempo. Se o meio exige comportamentos muito diferentes do perfil natural, é importante criar estratégias de gestão de energia e autoconhecimento para manter o desempenho sem comprometer o bem-estar.
+    <div class="page-content">
+      <div class="section-title"><span class="section-number">1</span>Sobre a Metodologia DISC</div>
+      <h2 class="section-heading">O que é o DISC?</h2>
+      <p class="body-text">
+        A metodologia DISC é uma das ferramentas de avaliação comportamental mais utilizadas no mundo. Desenvolvida a partir das pesquisas do psicólogo William Moulton Marston, publicadas em 1928, ela identifica quatro fatores comportamentais que influenciam como as pessoas agem em diferentes situações.
+      </p>
+      <p class="body-text" style="margin-bottom: 24px;">
+        O DISC não mede inteligência, habilidades técnicas ou maturidade emocional. Ele descreve <strong>comportamentos observáveis</strong> — como a pessoa se comunica, toma decisões, reage à pressão e interage com o ambiente ao redor.
+      </p>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom: 24px; flex: 1;">
+        <div style="background:#fef2f2; border-radius:12px; padding:20px; border: 1px solid #fee2e2;">
+          <div style="font-size:28px; font-weight:900; color:#ef4444; line-height: 1;">D</div>
+          <div style="font-size:14px; font-weight:800; color:#1e293b; margin:6px 0 4px 0;">Dominância</div>
+          <div style="font-size:12px; color:#64748b; line-height:1.4;">Como você responde a problemas, desafios e resultados.</div>
+        </div>
+        <div style="background:#fffbeb; border-radius:12px; padding:20px; border: 1px solid #fef3c7;">
+          <div style="font-size:28px; font-weight:900; color:#f59e0b; line-height: 1;">I</div>
+          <div style="font-size:14px; font-weight:800; color:#1e293b; margin:6px 0 4px 0;">Influência</div>
+          <div style="font-size:12px; color:#64748b; line-height:1.4;">Como você influencia pessoas ao seu redor.</div>
+        </div>
+        <div style="background:#f0fdf4; border-radius:12px; padding:20px; border: 1px solid #bbf7d0;">
+          <div style="font-size:28px; font-weight:900; color:#10b981; line-height: 1;">S</div>
+          <div style="font-size:14px; font-weight:800; color:#1e293b; margin:6px 0 4px 0;">Estabilidade</div>
+          <div style="font-size:12px; color:#64748b; line-height:1.4;">Como você responde ao ritmo e consistência do ambiente.</div>
+        </div>
+        <div style="background:#eff6ff; border-radius:12px; padding:20px; border: 1px solid #bfdbfe;">
+          <div style="font-size:28px; font-weight:900; color:#3b82f6; line-height: 1;">C</div>
+          <div style="font-size:14px; font-weight:800; color:#1e293b; margin:6px 0 4px 0;">Conformidade</div>
+          <div style="font-size:12px; color:#64748b; line-height:1.4;">Como você responde a regras e procedimentos do ambiente.</div>
+        </div>
+      </div>
+      
+      <p class="body-text" style="margin-top: auto;">
+        Este relatório apresenta o perfil de <strong>${av.nm_avaliado}</strong> com base nas suas respostas ao questionário DISC. As informações são confidenciais e devem ser usadas para desenvolvimento profissional e autoconhecimento.
+      </p>
+    </div>
+
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 2 de 12</span>
     </div>
   </div>
-</div>
 
-<!-- ────────────────── 12. PDI ────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <span style="font-size:13px;font-weight:900;color:#064384;">RESPONSA &nbsp;·&nbsp; DISC</span>
-    <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+  <!-- ────────────────── 3. RESULTADOS ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
+
+    <div class="page-content">
+      <div class="section-title"><span class="section-number">2</span>Seus Resultados</div>
+      <h2 class="section-heading">Intensidade dos Fatores Comportamentais</h2>
+      <p class="body-text">O gráfico abaixo representa a intensidade de cada fator do seu perfil DISC com base nas suas respostas ao questionário (Perfil Natural).</p>
+
+      <div class="disc-grid" style="margin: 20px 0;">
+        <div class="disc-item">
+          <div class="disc-label"><span style="color:#ef4444;font-weight:900;">D — Dominância</span><span>${pctD}%</span></div>
+          <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctD}%; background:#ef4444;">${pctD}%</div></div>
+        </div>
+        <div class="disc-item">
+          <div class="disc-label"><span style="color:#f59e0b;font-weight:900;">I — Influência</span><span>${pctI}%</span></div>
+          <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctI}%; background:#f59e0b;">${pctI}%</div></div>
+        </div>
+        <div class="disc-item">
+          <div class="disc-label"><span style="color:#10b981;font-weight:900;">S — Estabilidade</span><span>${pctS}%</span></div>
+          <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctS}%; background:#10b981;">${pctS}%</div></div>
+        </div>
+        <div class="disc-item">
+          <div class="disc-label"><span style="color:#3b82f6;font-weight:900;">C — Conformidade</span><span>${pctC}%</span></div>
+          <div class="disc-bar-bg"><div class="disc-bar-fill" style="width:${pctC}%; background:#3b82f6;">${pctC}%</div></div>
+        </div>
+      </div>
+
+      <div style="background: linear-gradient(135deg, #064384, #0a5caa); color:white; border-radius:16px; padding:20px 24px; margin: 20px 0; display:flex; align-items:center; gap:24px;">
+        <div style="font-size:56px; font-weight:900; line-height:1; color:${info.cor}; text-shadow:0 0 20px rgba(255,255,255,0.3);">${perfil}</div>
+        <div>
+          <div style="font-size:9.5px; font-weight:800; color:rgba(255,255,255,0.6); letter-spacing:2px; text-transform:uppercase; margin-bottom:4px;">Perfil Identificado</div>
+          <div style="font-size:16px; font-weight:800; color:white; line-height:1.2;">${info.nome}</div>
+        </div>
+      </div>
+
+      <div style="font-size: 12.5px; line-height: 1.6; color: #334155; text-align: justify; white-space: pre-wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; flex: 1; overflow-y: auto;">
+${profileDescription}
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 3 de 12</span>
+    </div>
   </div>
 
-  <div class="section-title"><span class="section-number">12</span>Plano de Desenvolvimento Individual</div>
-  <h2 class="section-heading">Observações do Consultor & PDI</h2>
+  <!-- ────────────────── 4. CARACTERÍSTICAS DOS SEUS PERFIS DOMINANTES ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
 
-  ${observacoes ? `
-  <div class="pdi-box">
-    <p class="pdi-content">${observacoes}</p>
-  </div>
-  ` : `
-  <div class="pdi-box" style="min-height:200px;">
-    <p style="color:#94a3b8; font-size:14px; font-style:italic;">Nenhuma observação registrada pelo consultor.</p>
-  </div>
-  `}
+    <div class="page-content">
+      <div class="section-title"><span class="section-number">3</span>Características dos Perfis Dominantes</div>
+      <h2 class="section-heading">Palavras-chave, Pontos Fortes, Pontos a Desenvolver e Sob Pressão</h2>
+      
+      <div style="display: flex; gap: 16px; width: 100%; flex: 1; align-items: stretch; margin-top: 10px;">
+        ${characteristicsHtml}
+      </div>
+    </div>
 
-  <div style="margin-top:40px; text-align:center; padding:24px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
-    <p style="font-size:12px; color:#94a3b8; font-weight:600;">
-      Este relatório foi gerado pela Plataforma <strong style="color:#064384;">RESPONSA</strong> com base na Metodologia DISC.<br/>
-      Documento confidencial — para uso restrito do profissional e do consultor responsável.
-    </p>
-    <p style="font-size:11px; color:#cbd5e1; margin-top:8px;">${dataFormatada}</p>
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 4 de 12</span>
+    </div>
   </div>
-</div>
+
+  <!-- ────────────────── 5. COMUNICAÇÃO & MOTIVADORES ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
+
+    <div class="page-content" style="justify-content: space-between;">
+      <div>
+        <div class="section-title"><span class="section-number">4</span>Estilo de Comunicação</div>
+        <h2 class="section-heading">Como se Comunicar com este Perfil</h2>
+        <div class="card card-orange" style="margin-bottom: 24px;">
+          <div class="card-label">Dica para líderes e colegas</div>
+          <div class="card-content">${info.comunicacao}</div>
+        </div>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <div class="section-title"><span class="section-number">5</span>O que Motiva este Perfil</div>
+        <h2 class="section-heading">Motivadores e Engajadores</h2>
+        <p class="body-text">Para manter ${av.nm_avaliado} engajado(a) e com alta performance, é importante considerar os seguintes motivadores:</p>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin: 16px 0;">
+          ${info.motivadores.map((m, i) => `
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:16px 20px; display:flex; align-items:center; gap:12px; box-sizing:border-box;">
+            <div style="width:32px; height:32px; background:${info.cor}; border-radius:8px; display:flex; align-items:center; justify-content:center; color:white; font-weight:900; font-size:14px; flex-shrink:0;">${i + 1}</div>
+            <span style="font-size:13px; color:#334155; font-weight:600;">${m}</span>
+          </div>`).join("")}
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 5 de 12</span>
+    </div>
+  </div>
+
+  <!-- ────────────────── 6. AMBIENTE & LIDERANÇA ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
+
+    <div class="page-content" style="justify-content: space-between;">
+      <div>
+        <div class="section-title"><span class="section-number">6</span>Ambiente de Trabalho Ideal</div>
+        <h2 class="section-heading">Condições que Potencializam o Desempenho</h2>
+        <div class="card card-green" style="margin-bottom: 24px;">
+          <div class="card-label">Contexto ideal de trabalho</div>
+          <div class="card-content">${info.ambienteIdeal}</div>
+        </div>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <div class="section-title"><span class="section-number">7</span>Liderança e Tomada de Decisão</div>
+        <h2 class="section-heading">Como este Perfil Lidera e Decide</h2>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px;">
+          <div class="card" style="margin: 0;">
+            <div class="card-label">Estilo de Liderança</div>
+            <div class="card-content">
+              ${letraPrincipal === "D" ? "Diretivo e orientado a resultados. Lidera pelo exemplo e pela autoridade. Espera execução rápida e eficiente." : ""}
+              ${letraPrincipal === "I" ? "Inspirador e carismático. Lidera pelo entusiasmo e conexão emocional. Motiva a equipe com energia e otimismo." : ""}
+              ${letraPrincipal === "S" ? "Colaborativo e apoiador. Lidera pela confiança e estabilidade. Constrói equipes coesas e harmoniosas." : ""}
+              ${letraPrincipal === "C" ? "Analítico e metódico. Lidera pela competência técnica e rigor. Exige qualidade e precisão da equipe." : ""}
+            </div>
+          </div>
+          <div class="card card-orange" style="margin: 0;">
+            <div class="card-label">Tomada de Decisão</div>
+            <div class="card-content">
+              ${letraPrincipal === "D" ? "Rápido e decisivo. Baseia-se na intuição e no objetivo final. Não teme riscos quando necessário." : ""}
+              ${letraPrincipal === "I" ? "Intuitivo e baseado em pessoas. Considera o impacto nas relações. Pode ser impulsivo, mas reconsidera quando necessário." : ""}
+              ${letraPrincipal === "S" ? "Cauteloso e colaborativo. Prefere consenso e avalia o impacto nas pessoas. Demora mais, mas é consistente." : ""}
+              ${letraPrincipal === "C" ? "Analítico e baseado em dados. Avalia todas as variáveis antes de decidir. Busca a melhor solução possível." : ""}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 6 de 12</span>
+    </div>
+  </div>
+
+  <!-- ────────────────── 7. ADAPTAÇÃO AO MEIO ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
+
+    <div class="page-content">
+      <div class="section-title"><span class="section-number">8</span>Interação com o Meio Ambiente</div>
+      <h2 class="section-heading">Perfil Natural vs. Exigência do Meio vs. Perfil Adaptado</h2>
+      <p class="body-text" style="margin-bottom: 20px;">Esta seção compara o perfil natural de ${av.nm_avaliado} com o que o ambiente de trabalho exige e o quanto de adaptação comportamental real é gerada.</p>
+
+      <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        ${comparisonChartsHtml}
+      </div>
+      
+      <p style="font-size:11px; color:#94a3b8; margin-top:10px;">
+        Legenda: Perfil Atual (Natural) &nbsp;·&nbsp; Exigência do Meio (Necessidade) &nbsp;·&nbsp; Adaptado (Comportamento de adaptação real)
+      </p>
+    </div>
+
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 7 de 12</span>
+    </div>
+  </div>
+
+  <!-- ────────────────── 8. FEEDBACK DE INTERAÇÃO COM O MEIO ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
+
+    <div class="page-content">
+      <div class="section-title"><span class="section-number">9</span>Interação com o Meio</div>
+      <h2 class="section-heading">Análise de Esforço Adaptativo</h2>
+      
+      <div style="font-size: 13px; line-height: 1.7; color: #334155; text-align: justify; white-space: pre-wrap; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; flex: 1; overflow-y: auto;">
+${feedbackText}
+      </div>
+
+      <table class="compare-table" style="margin-top:20px; margin-bottom: 0;">
+        <thead>
+          <tr><th>Fator</th><th>Perfil Natural</th><th>Exigência do Meio</th><th>Variação</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong style="color:#ef4444;">D — Dominância</strong></td>
+            <td>${pctD}%</td><td>${epD}%</td>
+            <td style="font-weight:800; color:${epD - pctD > 5 ? '#dc2626' : epD - pctD < -5 ? '#2563eb' : '#16a34a'};">${epD - pctD > 0 ? '+' : ''}${epD - pctD}pp</td>
+          </tr>
+          <tr>
+            <td><strong style="color:#f59e0b;">I — Influência</strong></td>
+            <td>${pctI}%</td><td>${epI}%</td>
+            <td style="font-weight:800; color:${epI - pctI > 5 ? '#dc2626' : epI - pctI < -5 ? '#2563eb' : '#16a34a'};">${epI - pctI > 0 ? '+' : ''}${epI - pctI}pp</td>
+          </tr>
+          <tr>
+            <td><strong style="color:#10b981;">S — Estabilidade</strong></td>
+            <td>${pctS}%</td><td>${epS}%</td>
+            <td style="font-weight:800; color:${epS - pctS > 5 ? '#dc2626' : epS - pctS < -5 ? '#2563eb' : '#16a34a'};">${epS - pctS > 0 ? '+' : ''}${epS - pctS}pp</td>
+          </tr>
+          <tr>
+            <td><strong style="color:#3b82f6;">C — Conformidade</strong></td>
+            <td>${pctC}%</td><td>${epC}%</td>
+            <td style="font-weight:800; color:${epC - pctC > 5 ? '#dc2626' : epC - pctC < -5 ? '#2563eb' : '#16a34a'};">${epC - pctC > 0 ? '+' : ''}${epC - pctC}pp</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 8 de 12</span>
+    </div>
+  </div>
+
+  <!-- ────────────────── 9. QUADRO DE ADAPTAÇÕES ────────────────── -->
+  <div class="page page-break">
+    <div class="page-header">
+      <span class="page-logo-text">RESPONSA &nbsp;·&nbsp; DISC</span>
+      <span class="page-header-info">${av.nm_avaliado} &nbsp;|&nbsp; ${dataFormatada}</span>
+    </div>
+
+    <div class="page-content" style="justify-content: center;">
+      <div class="section-title"><span class="section-number">10</span>Quadro de Adaptações</div>
+      <h2 class="section-heading" style="margin-bottom: 12px;">Como trabalhar as características comportamentais para adaptar-se ao meio</h2>
+      
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; flex: 1;">
+        <!-- D -->
+        <div style="border: 1px solid #fecaca; border-radius: 12px; padding: 14px; background: #fef2f2; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h3 style="font-size: 13.5px; font-weight: bold; color: #dc2626; border-bottom: 2px solid #fca5a5; padding-bottom: 6px; margin: 0 0 10px 0;">DOMINÂNCIA (D)</h3>
+            <div style="font-size: 11px; color: #16a34a; font-weight: bold; margin-bottom: 2px;">Aumentar (+)</div>
+            <div style="font-size: 11.5px; color: #475569; margin-bottom: 10px; line-height: 1.35;">Independência, Assertividade, Proatividade, Pulso, Senso de Urgência, Compreensão.</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: #dc2626; font-weight: bold; margin-bottom: 2px;">Diminuir (-)</div>
+            <div style="font-size: 11.5px; color: #475569; line-height: 1.35; margin: 0;">Independência excessiva, Dominância, Agradabilidade extrema, Cuidado extremo.</div>
+          </div>
+        </div>
+        <!-- I -->
+        <div style="border: 1px solid #fef3c7; border-radius: 12px; padding: 14px; background: #fffbeb; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h3 style="font-size: 13.5px; font-weight: bold; color: #d97706; border-bottom: 2px solid #fde68a; padding-bottom: 6px; margin: 0 0 10px 0;">INFLUÊNCIA (I)</h3>
+            <div style="font-size: 11px; color: #16a34a; font-weight: bold; margin-bottom: 2px;">Aumentar (+)</div>
+            <div style="font-size: 11.5px; color: #475569; margin-bottom: 10px; line-height: 1.35;">Comunicação ativa, Trabalho em Equipe, Otimismo, Envolvimento pessoal, Popularidade.</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: #dc2626; font-weight: bold; margin-bottom: 2px;">Diminuir (-)</div>
+            <div style="font-size: 11.5px; color: #475569; line-height: 1.35; margin: 0;">Foco Técnico rígido, Rigor Analítico, Reserva, Impulsividade, Organização excessiva.</div>
+          </div>
+        </div>
+        <!-- S -->
+        <div style="border: 1px solid #bbf7d0; border-radius: 12px; padding: 14px; background: #f0fdf4; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h3 style="font-size: 13.5px; font-weight: bold; color: #16a34a; border-bottom: 2px solid #86efac; padding-bottom: 6px; margin: 0 0 10px 0;">ESTABILIDADE (S)</h3>
+            <div style="font-size: 11px; color: #16a34a; font-weight: bold; margin-bottom: 2px;">Aumentar (+)</div>
+            <div style="font-size: 11.5px; color: #475569; margin-bottom: 10px; line-height: 1.35;">Método de trabalho, Paciência, Tolerância, Organização, Comando pessoal, Rapidez, Exposição a Mudanças, Assumir Riscos.</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: #dc2626; font-weight: bold; margin-bottom: 2px;">Diminuir (-)</div>
+            <div style="font-size: 11.5px; color: #475569; line-height: 1.35; margin: 0;">Apressamento de tarefas, Tempo de Execução prolongado.</div>
+          </div>
+        </div>
+        <!-- C -->
+        <div style="border: 1px solid #bfdbfe; border-radius: 12px; padding: 14px; background: #eff6ff; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h3 style="font-size: 13.5px; font-weight: bold; color: #2563eb; border-bottom: 2px solid #93c5fd; padding-bottom: 6px; margin: 0 0 10px 0;">CONFORMIDADE (C)</h3>
+            <div style="font-size: 11px; color: #16a34a; font-weight: bold; margin-bottom: 2px;">Aumentar (+)</div>
+            <div style="font-size: 11.5px; color: #475569; margin-bottom: 10px; line-height: 1.35;">Estruturação de processos, Especialização técnica, Cuidado, Reserva pessoal, Discrição.</div>
+          </div>
+          <div>
+            <div style="font-size: 11px; color: #dc2626; font-weight: bold; margin-bottom: 2px;">Diminuir (-)</div>
+            <div style="font-size: 11.5px; color: #475569; line-height: 1.35; margin: 0;">Formalismo excessivo, Espírito Aventureiro, Trabalho em Equipe excessivo, Perfeccionismo extremo, Organização exagerada.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span>Candidato: ${av.nm_avaliado}</span>
+      <span>Página 9 de 12</span>
+    </div>
+  </div>
+
+  ${page9}
+  ${page10}
+  ${page11}
+  ${page12}
 
 <script>
   window.onload = function() {

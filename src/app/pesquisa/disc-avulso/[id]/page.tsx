@@ -213,6 +213,14 @@ export default function PesquisaDiscAvulsoPage() {
                   outras 25 referem-se a como você acha que as pessoas ao seu
                   redor esperam que você se comporte.
                 </li>
+                <li className="flex gap-3">
+                  <span className="text-[#064384] font-black">03.</span>
+                  Para cada grupo de 4 palavras, você deve ordená-las de 1 a 4, onde:
+                  <br />
+                  <strong>1</strong> representa a característica que <strong>MAIS</strong> identifica você (maior nota).
+                  <br />
+                  <strong>4</strong> representa a característica que <strong>MENOS</strong> identifica você (menor nota).
+                </li>
               </ul>
             </div>
           </div>

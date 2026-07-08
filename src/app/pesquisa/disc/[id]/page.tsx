@@ -1,6 +1,7 @@
 "use client";
 
 import { supabase } from "@/lib/supabase";
+import { calcularPontuacaoDisc } from "@/lib/disc-utils";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -143,23 +144,15 @@ export default function PesquisaDiscPage() {
 
       // No último passo, calcula e grava as notas finais em AVALIACOES_DISC
       if (isLastStep) {
-        let D = 0, I = 0, S = 0, C = 0;
-        discQuestions.forEach((group) => {
-          const ga = answers[group.id] || {};
-          D += (ga[group.words[0]] || 0);
-          I += (ga[group.words[1]] || 0);
-          S += (ga[group.words[2]] || 0);
-          C += (ga[group.words[3]] || 0);
-        });
-        const total = D + I + S + C || 1;
+        const scores = calcularPontuacaoDisc(answers);
 
         const { error: discError } = await supabase
           .from("AVALIACOES_DISC")
           .update({
-            nr_dominancia: Math.round((D / total) * 100),
-            nr_influencia: Math.round((I / total) * 100),
-            nr_estabilidade: Math.round((S / total) * 100),
-            nr_conformidade: Math.round((C / total) * 100),
+            nr_dominancia: scores.D,
+            nr_influencia: scores.I,
+            nr_estabilidade: scores.S,
+            nr_conformidade: scores.C,
             dt_avaliacao: new Date().toISOString().split("T")[0],
           })
           .eq("cd_funcionario", params.id);
@@ -241,6 +234,14 @@ export default function PesquisaDiscPage() {
                   <span className="text-primary font-black">02.</span>
                   As outras 25 perguntas referem-se a como você acha que as
                   pessoas ao seu redor esperam que você se comporte.
+                </li>
+                <li className="flex gap-3">
+                  <span className="text-primary font-black">03.</span>
+                  Para cada grupo de 4 palavras, você deve ordená-las de 1 a 4, onde:
+                  <br />
+                  <strong>1</strong> representa a característica que <strong>MAIS</strong> identifica você (maior nota).
+                  <br />
+                  <strong>4</strong> representa a característica que <strong>MENOS</strong> identifica você (menor nota).
                 </li>
               </ul>
             </div>
