@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     const { error } = await resend.emails.send({
-      from: "Responsa <onboarding@resend.dev>",
+      from: "Responsa <contato@responsaedu.com.br>",
       to: DESTINATARIO,
       replyTo: email,
       subject: `Nova solicitação de acesso — ${nome}`,
