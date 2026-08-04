@@ -118,11 +118,9 @@ const BLOCO_QUALITATIVO = {
 };
 
 const ESCALA = [
-  { valor: 1, label: "Não existe" },
-  { valor: 2, label: "Informal" },
-  { valor: 3, label: "Parcial" },
-  { valor: 4, label: "Estruturado" },
-  { valor: 5, label: "Aplicado" },
+  { valor: 1, label: "Não" },
+  { valor: 2, label: "Talvez" },
+  { valor: 3, label: "Sim" },
 ];
 
 export default function DiagnosticoInicialPage() {
@@ -195,7 +193,7 @@ export default function DiagnosticoInicialPage() {
       bloco.perguntas.forEach((_, qIndex) => {
         const key = `${bloco.id}_${qIndex}`;
         if (respostasQuant[key]) {
-          const percentual = (respostasQuant[key] - 1) * 25;
+          const percentual = (respostasQuant[key] - 1) * 50;
           somaBloco += percentual;
           somaGeral += percentual;
           qtdBloco++;
@@ -334,6 +332,44 @@ export default function DiagnosticoInicialPage() {
       (r) => r.score > 20 && r.score <= 30,
     );
 
+    // Diagnóstico Final e Causa Raiz dinâmicos, com base na maturidade real e nos pilares mais fracos
+    const piorPilar = rankingInvertido[0];
+    const tresPiores = rankingInvertido.slice(0, 3);
+
+    const diagnosticoFinal =
+      resultados.indiceGeral <= 25
+        ? {
+            titulo: "DESORGANIZAÇÃO ESTRUTURAL",
+            cor: "#ef4444",
+            bullets: tresPiores.map((r) => `Ausência de processos em ${r.titulo} (${r.score}%)`),
+          }
+        : resultados.indiceGeral <= 50
+          ? {
+              titulo: "ESTRUTURAÇÃO INICIAL COM LACUNAS RELEVANTES",
+              cor: "#f97316",
+              bullets: tresPiores.map((r) => `Processos ainda informais em ${r.titulo} (${r.score}%)`),
+            }
+          : resultados.indiceGeral <= 75
+            ? {
+                titulo: "GESTÃO EM CONSOLIDAÇÃO",
+                cor: "#eab308",
+                bullets: tresPiores.map((r) => `Espaço de evolução em ${r.titulo} (${r.score}%)`),
+              }
+            : {
+                titulo: "GESTÃO MADURA COM OPORTUNIDADES DE OTIMIZAÇÃO",
+                cor: "#22c55e",
+                bullets: tresPiores.map((r) => `Refinamento pontual em ${r.titulo} (${r.score}%)`),
+              };
+
+    const causaRaizTexto = piorPilar
+      ? `O problema relatado não é a causa real. A causa raiz está concentrada em <strong>${piorPilar.titulo}</strong> (${piorPilar.score}%): a ausência de ${piorPilar.consultoria} estruturado(a) é o que sustenta os demais sintomas relatados pela empresa.`
+      : "Não há dados suficientes nas respostas para apontar a causa raiz.";
+
+    const insightOcultoTexto =
+      resultados.riscoTurnover > 50 || resultados.riscoTrabalhista > 50
+        ? `Mas os indicadores mostram risco de turnover de ${resultados.riscoTurnover}% e risco trabalhista de ${resultados.riscoTrabalhista}% — sinal de que a percepção do empresário não reflete o risco real da operação.`
+        : `Os indicadores de risco estão relativamente sob controle (turnover ${resultados.riscoTurnover}%, trabalhista ${resultados.riscoTrabalhista}%), mas isso não substitui a falta de estrutura formal identificada nos pilares mais fracos.`;
+
     const formatGroup = (group: any[], color: string, explanation: string) => {
       if (group.length === 0) return "";
       return `
@@ -460,8 +496,8 @@ export default function DiagnosticoInicialPage() {
                 <p style="margin: 0 0 5px 0;">O empresário acredita que:</p>
                 <p style="font-weight: 900; font-size: 16px; margin: 0 0 15px 0;">👉 "${respostasQuali["Q_4"] || "A remuneração é adequada"}"</p>
                 
-                <p style="margin: 0 0 5px 0;">Mas ao mesmo tempo a equipe apresenta problemas.</p>
-                
+                <p style="margin: 0 0 5px 0;">${insightOcultoTexto}</p>
+
                 <div style="background: #fef2f2; padding: 10px; border-left: 4px solid #ef4444; margin-top: 15px;">
                   <p style="margin: 0; color: #991b1b;">💡 <b>Isso indica:</b> O problema não é só financeiro. Há uma clara falta de gestão, reconhecimento e liderança estruturada no dia a dia.</p>
                 </div>
@@ -474,19 +510,16 @@ export default function DiagnosticoInicialPage() {
               <h2 class="section-title">🚨 4. DIAGNÓSTICO FINAL</h2>
               <div class="box">
                 <p style="font-weight: 800; font-size: 14px; margin: 0 0 10px 0;">A empresa apresenta um cenário de:</p>
-                <p style="font-weight: 900; font-size: 18px; color: #ef4444; margin: 0 0 15px 0;">🔴 DESORGANIZAÇÃO ESTRUTURAL</p>
+                <p style="font-weight: 900; font-size: 18px; color: ${diagnosticoFinal.cor}; margin: 0 0 15px 0;">🔴 ${diagnosticoFinal.titulo}</p>
                 <ul style="font-size: 13px; font-weight: bold; color: #475569; padding-left: 20px; margin: 0;">
-                  <li>Falta de liderança estruturada</li>
-                  <li>Ausência de processos</li>
-                  <li>Falta de clareza de papéis</li>
+                  ${diagnosticoFinal.bullets.map((b) => `<li>${b}</li>`).join("")}
                 </ul>
               </div>
             </div>
             <div>
               <h2 class="section-title">🎯 5. CAUSA RAIZ</h2>
               <div class="box" style="background: #1e293b; color: white; border: none; height: 100%; display: flex; flex-direction: column; justify-content: center;">
-                <p style="font-size: 16px; font-weight: 600; opacity: 0.9; margin: 0 0 10px 0;">O problema relatado não é a causa real.</p>
-                <p style="font-size: 22px; font-weight: 900; color: #fbbf24; margin: 0; line-height: 1.3;">👉 É a ausência de um Sistema Integrado de Gestão de Pessoas.</p>
+                <p style="font-size: 16px; font-weight: 900; color: #fbbf24; margin: 0; line-height: 1.4;">👉 ${causaRaizTexto}</p>
               </div>
             </div>
           </div>
@@ -698,10 +731,10 @@ export default function DiagnosticoInicialPage() {
                                 [key]: item.valor,
                               })
                             }
-                            className={`size-10 rounded-lg text-sm font-black transition-all flex items-center justify-center border-2 
-                              ${val === item.valor ? "bg-[#064384] border-[#064384] text-white shadow-md scale-110" : "bg-white border-slate-200 text-slate-400 hover:border-[#064384]/50 hover:text-[#064384]"}`}
+                            className={`h-10 px-4 rounded-lg text-xs font-black uppercase tracking-wide transition-all flex items-center justify-center border-2
+                              ${val === item.valor ? "bg-[#064384] border-[#064384] text-white shadow-md scale-105" : "bg-white border-slate-200 text-slate-400 hover:border-[#064384]/50 hover:text-[#064384]"}`}
                           >
-                            {item.valor}
+                            {item.label}
                           </button>
                         ))}
                       </div>

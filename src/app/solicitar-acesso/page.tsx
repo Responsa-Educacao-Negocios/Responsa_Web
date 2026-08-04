@@ -14,6 +14,7 @@ export default function SolicitarAcessoPage() {
   });
   const [enviado, setEnviado] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -22,9 +23,26 @@ export default function SolicitarAcessoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setEnviando(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setEnviando(false);
-    setEnviado(true);
+    setErro("");
+
+    try {
+      const res = await fetch("/api/contato", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) throw new Error("Falha no envio");
+
+      setEnviado(true);
+    } catch (error) {
+      console.error("Erro ao enviar solicitação de acesso:", error);
+      setErro(
+        "Não foi possível enviar sua solicitação agora. Tente novamente em instantes.",
+      );
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -185,6 +203,15 @@ export default function SolicitarAcessoPage() {
                     className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-800 placeholder:text-slate-400 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none transition-all text-sm font-medium resize-none"
                   />
                 </div>
+
+                {erro && (
+                  <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600 font-medium">
+                    <span className="material-symbols-outlined text-[18px]">
+                      error
+                    </span>
+                    {erro}
+                  </div>
+                )}
 
                 <button
                   type="submit"

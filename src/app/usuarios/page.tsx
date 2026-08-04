@@ -12,16 +12,19 @@ interface Consultor {
   ds_email?: string;
   tipo: "consultor";
   sn_ativo?: boolean;
+  tp_permissao: "ADMIN" | "CONSULTOR";
   ts_criacao?: string;
 }
 
 interface UsuarioCliente {
   id: string;
+  cd_auth_supabase: string;
   nm_usuario: string;
   ds_email: string;
   cd_empresa: string;
   nm_empresa?: string;
   tipo: "cliente";
+  sn_ativo?: boolean;
   ts_criacao?: string;
 }
 
@@ -50,6 +53,13 @@ export default function UsuariosPage() {
   const [faturas, setFaturas] = useState<Fatura[]>([]);
   const [faturasAlerta, setFaturasAlerta] = useState(0);
 
+  // Edição de usuário (consultor ou cliente)
+  const [editTarget, setEditTarget] = useState<
+    { tipo: "consultor" | "cliente"; id: string } | null
+  >(null);
+  const [formEdit, setFormEdit] = useState({ nome: "", cargo: "", email: "" });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -75,6 +85,7 @@ export default function UsuariosPage() {
         ds_email: c.ds_email || c.email || "—",
         tipo: "consultor" as const,
         sn_ativo: c.sn_ativo ?? true,
+        tp_permissao: (c.tp_permissao || "CONSULTOR") as "ADMIN" | "CONSULTOR",
         ts_criacao: c.ts_criacao || c.created_at,
       })));
     }
@@ -91,11 +102,13 @@ export default function UsuariosPage() {
         const empresa = Array.isArray(c.EMPRESAS) ? c.EMPRESAS[0] : c.EMPRESAS;
         return {
           id: c.cd_usuario || c.id || c.cd_auth_supabase,
+          cd_auth_supabase: c.cd_auth_supabase,
           nm_usuario: c.nm_usuario,
           ds_email: c.ds_email,
           cd_empresa: c.cd_empresa,
           nm_empresa: empresa?.nm_fantasia || "—",
           tipo: "cliente" as const,
+          sn_ativo: c.sn_ativo ?? true,
           ts_criacao: c.ts_criacao || c.created_at,
         };
       }));
@@ -136,6 +149,134 @@ export default function UsuariosPage() {
     }
   };
 
+  const handleToggleAtivoConsultor = async (id: string, atual: boolean) => {
+    const { error } = await supabase
+      .from("CONSULTORES")
+      .update({ sn_ativo: !atual })
+      .eq("cd_consultor", id);
+    if (error) {
+      alert("Não foi possível alterar o status do consultor.");
+      return;
+    }
+    setConsultores((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, sn_ativo: !atual } : c)),
+    );
+  };
+
+  const handleAlterarPermissao = async (
+    id: string,
+    permissao: "ADMIN" | "CONSULTOR",
+  ) => {
+    const { error } = await supabase
+      .from("CONSULTORES")
+      .update({ tp_permissao: permissao })
+      .eq("cd_consultor", id);
+    if (error) {
+      alert("Não foi possível alterar a permissão do consultor.");
+      return;
+    }
+    setConsultores((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, tp_permissao: permissao } : c)),
+    );
+  };
+
+  const handleDeleteConsultor = async (id: string, nome: string) => {
+    if (!window.confirm(`Excluir o consultor ${nome}? Esta ação não pode ser desfeita.`)) return;
+    const { error } = await supabase.from("CONSULTORES").delete().eq("cd_consultor", id);
+    if (error) {
+      alert("Erro ao excluir. O consultor pode estar vinculado a projetos existentes.");
+      return;
+    }
+    setConsultores((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const handleToggleAtivoCliente = async (cliente: UsuarioCliente) => {
+    const { error } = await supabase
+      .from("USUARIOS_CLIENTE")
+      .update({ sn_ativo: !cliente.sn_ativo })
+      .eq("cd_auth_supabase", cliente.cd_auth_supabase);
+    if (error) {
+      alert("Não foi possível alterar o status do usuário.");
+      return;
+    }
+    setClientes((prev) =>
+      prev.map((c) =>
+        c.cd_auth_supabase === cliente.cd_auth_supabase
+          ? { ...c, sn_ativo: !cliente.sn_ativo }
+          : c,
+      ),
+    );
+  };
+
+  const handleDeleteCliente = async (cliente: UsuarioCliente) => {
+    if (!window.confirm(`Excluir o acesso de ${cliente.nm_usuario} ao portal? Esta ação não pode ser desfeita.`)) return;
+    const { error } = await supabase
+      .from("USUARIOS_CLIENTE")
+      .delete()
+      .eq("cd_auth_supabase", cliente.cd_auth_supabase);
+    if (error) {
+      alert("Erro ao excluir o acesso do usuário.");
+      return;
+    }
+    setClientes((prev) => prev.filter((c) => c.cd_auth_supabase !== cliente.cd_auth_supabase));
+  };
+
+  const openEditConsultor = (c: Consultor) => {
+    setEditTarget({ tipo: "consultor", id: c.id });
+    setFormEdit({ nome: c.nm_completo, cargo: c.ds_cargo, email: c.ds_email || "" });
+  };
+
+  const openEditCliente = (c: UsuarioCliente) => {
+    setEditTarget({ tipo: "cliente", id: c.cd_auth_supabase });
+    setFormEdit({ nome: c.nm_usuario, cargo: "", email: c.ds_email });
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    setIsSavingEdit(true);
+
+    try {
+      if (editTarget.tipo === "consultor") {
+        const { error } = await supabase
+          .from("CONSULTORES")
+          .update({
+            nm_completo: formEdit.nome,
+            ds_cargo: formEdit.cargo,
+            ds_email: formEdit.email,
+          })
+          .eq("cd_consultor", editTarget.id);
+        if (error) throw error;
+        setConsultores((prev) =>
+          prev.map((c) =>
+            c.id === editTarget.id
+              ? { ...c, nm_completo: formEdit.nome, ds_cargo: formEdit.cargo, ds_email: formEdit.email }
+              : c,
+          ),
+        );
+      } else {
+        const { error } = await supabase
+          .from("USUARIOS_CLIENTE")
+          .update({ nm_usuario: formEdit.nome, ds_email: formEdit.email })
+          .eq("cd_auth_supabase", editTarget.id);
+        if (error) throw error;
+        setClientes((prev) =>
+          prev.map((c) =>
+            c.cd_auth_supabase === editTarget.id
+              ? { ...c, nm_usuario: formEdit.nome, ds_email: formEdit.email }
+              : c,
+          ),
+        );
+      }
+      setEditTarget(null);
+    } catch (error) {
+      console.error("Erro ao salvar edição:", error);
+      alert("Erro ao salvar as alterações.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const getStatusFaturaBadge = (f: Fatura) => {
     const vencimento = f.dt_vencimento ? new Date(f.dt_vencimento) : null;
     const hoje = new Date();
@@ -169,6 +310,79 @@ export default function UsuariosPage() {
   return (
     <div className="flex h-screen bg-[#F8FAFC] font-sans overflow-hidden">
       <Sidebar onLogout={async () => { await supabase.auth.signOut(); router.push("/login"); }} />
+
+      {/* MODAL: EDITAR USUÁRIO */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+              <h3 className="text-lg font-bold text-[#064384] flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#FF8323]">edit_square</span>
+                Editar {editTarget.tipo === "consultor" ? "Consultor" : "Usuário do Portal"}
+              </h3>
+              <button onClick={() => setEditTarget(null)} className="text-slate-400 hover:text-red-500">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="flex flex-col">
+              <div className="p-6 space-y-4 bg-slate-50/50">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-slate-700">Nome</label>
+                  <input
+                    required
+                    value={formEdit.nome}
+                    onChange={(e) => setFormEdit({ ...formEdit, nome: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
+                </div>
+
+                {editTarget.tipo === "consultor" && (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-slate-700">Cargo / Função</label>
+                    <input
+                      value={formEdit.cargo}
+                      onChange={(e) => setFormEdit({ ...formEdit, cargo: e.target.value })}
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                    />
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-semibold text-slate-700">E-mail</label>
+                  <input
+                    required
+                    type="email"
+                    value={formEdit.email}
+                    onChange={(e) => setFormEdit({ ...formEdit, email: e.target.value })}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  />
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Isso atualiza só o e-mail de contato cadastrado — não altera o e-mail de login.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setEditTarget(null)}
+                  className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingEdit}
+                  className="px-5 py-2.5 bg-[#064384] hover:bg-blue-900 text-white text-sm font-bold rounded-lg disabled:opacity-50"
+                >
+                  {isSavingEdit ? "Salvando..." : "Salvar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 overflow-y-auto flex flex-col h-full relative">
         {/* Header */}
@@ -248,14 +462,15 @@ export default function UsuariosPage() {
                           <th className="text-center px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Permissão</th>
                           <th className="text-center px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Status</th>
                           <th className="text-left px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Cadastro</th>
+                          <th className="text-right px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {consultores.length === 0 ? (
-                          <tr><td colSpan={6} className="text-center py-10 text-slate-400 text-sm font-medium">Nenhum consultor cadastrado.</td></tr>
+                          <tr><td colSpan={7} className="text-center py-10 text-slate-400 text-sm font-medium">Nenhum consultor cadastrado.</td></tr>
                         ) : (
                           consultores.map((c) => (
-                            <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                            <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors group">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-9 h-9 rounded-full bg-[#064384]/10 text-[#064384] flex items-center justify-center font-black text-sm">
@@ -267,14 +482,45 @@ export default function UsuariosPage() {
                               <td className="px-6 py-4 text-sm text-slate-600 font-medium">{c.ds_cargo}</td>
                               <td className="px-6 py-4 text-sm text-slate-500">{c.ds_email}</td>
                               <td className="px-6 py-4 text-center">
-                                <span className="bg-[#064384]/10 text-[#064384] text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Admin</span>
+                                <select
+                                  value={c.tp_permissao}
+                                  onChange={(e) =>
+                                    handleAlterarPermissao(c.id, e.target.value as "ADMIN" | "CONSULTOR")
+                                  }
+                                  className="bg-[#064384]/10 text-[#064384] text-[10px] font-black px-2.5 py-1.5 rounded-full uppercase tracking-wider border-none outline-none cursor-pointer"
+                                >
+                                  <option value="ADMIN">Admin</option>
+                                  <option value="CONSULTOR">Consultor</option>
+                                </select>
                               </td>
                               <td className="px-6 py-4 text-center">
-                                <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${(c.sn_ativo ?? true) ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                                <button
+                                  onClick={() => handleToggleAtivoConsultor(c.id, c.sn_ativo ?? true)}
+                                  title="Clique para ativar/desativar"
+                                  className={`text-[10px] font-black px-2.5 py-1 rounded-full transition-colors ${(c.sn_ativo ?? true) ? "bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-600" : "bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"}`}
+                                >
                                   {(c.sn_ativo ?? true) ? "Ativo" : "Inativo"}
-                                </span>
+                                </button>
                               </td>
                               <td className="px-6 py-4 text-sm text-slate-400 font-medium">{formatarData(c.ts_criacao)}</td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => openEditConsultor(c)}
+                                    title="Editar"
+                                    className="h-8 w-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-[#064384] hover:border-[#064384] flex items-center justify-center transition-all shadow-sm"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteConsultor(c.id, c.nm_completo)}
+                                    title="Excluir"
+                                    className="h-8 w-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 flex items-center justify-center transition-all shadow-sm"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           ))
                         )}
@@ -305,15 +551,17 @@ export default function UsuariosPage() {
                           <th className="text-left px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">E-mail</th>
                           <th className="text-left px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Empresa</th>
                           <th className="text-center px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Permissão</th>
+                          <th className="text-center px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Status</th>
                           <th className="text-left px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Cadastro</th>
+                          <th className="text-right px-6 py-3 text-[11px] font-black text-slate-500 uppercase tracking-widest">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {clientes.length === 0 ? (
-                          <tr><td colSpan={5} className="text-center py-10 text-slate-400 text-sm font-medium">Nenhum acesso de cliente gerado ainda.</td></tr>
+                          <tr><td colSpan={7} className="text-center py-10 text-slate-400 text-sm font-medium">Nenhum acesso de cliente gerado ainda.</td></tr>
                         ) : (
                           clientes.map((c) => (
-                            <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                            <tr key={c.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors group">
                               <td className="px-6 py-4">
                                 <div className="flex items-center gap-3">
                                   <div className="w-9 h-9 rounded-full bg-[#FF8323]/10 text-[#FF8323] flex items-center justify-center font-black text-sm">
@@ -327,7 +575,34 @@ export default function UsuariosPage() {
                               <td className="px-6 py-4 text-center">
                                 <span className="bg-orange-50 text-[#FF8323] text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Cliente</span>
                               </td>
+                              <td className="px-6 py-4 text-center">
+                                <button
+                                  onClick={() => handleToggleAtivoCliente(c)}
+                                  title="Clique para ativar/desativar"
+                                  className={`text-[10px] font-black px-2.5 py-1 rounded-full transition-colors ${(c.sn_ativo ?? true) ? "bg-emerald-50 text-emerald-700 hover:bg-red-50 hover:text-red-600" : "bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-700"}`}
+                                >
+                                  {(c.sn_ativo ?? true) ? "Ativo" : "Inativo"}
+                                </button>
+                              </td>
                               <td className="px-6 py-4 text-sm text-slate-400 font-medium">{formatarData(c.ts_criacao)}</td>
+                              <td className="px-6 py-4">
+                                <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={() => openEditCliente(c)}
+                                    title="Editar"
+                                    className="h-8 w-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-[#064384] hover:border-[#064384] flex items-center justify-center transition-all shadow-sm"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteCliente(c)}
+                                    title="Excluir"
+                                    className="h-8 w-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 flex items-center justify-center transition-all shadow-sm"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           ))
                         )}

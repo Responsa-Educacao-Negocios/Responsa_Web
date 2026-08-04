@@ -16,6 +16,14 @@ interface EmpresaDetalhe {
   ts_criacao: string;
 }
 
+interface Apontamento {
+  cd_apontamento: string;
+  nr_horas: number;
+  ds_descricao: string | null;
+  dt_apontamento: string;
+  CONSULTORES: { nm_completo: string } | { nm_completo: string }[] | null;
+}
+
 export default function FichaEmpresaPage() {
   const router = useRouter();
   const params = useParams();
@@ -26,6 +34,16 @@ export default function FichaEmpresaPage() {
   // Estados do Modal de Edição
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Estados do Apontamento de Horas
+  const [apontamentos, setApontamentos] = useState<Apontamento[]>([]);
+  const [isApontamentoModalOpen, setIsApontamentoModalOpen] = useState(false);
+  const [isSavingApontamento, setIsSavingApontamento] = useState(false);
+  const [formApontamento, setFormApontamento] = useState({
+    nr_horas: "",
+    ds_descricao: "",
+    dt_apontamento: new Date().toISOString().slice(0, 10),
+  });
   const [formTab, setFormTab] = useState<1 | 2>(1);
   const [formData, setFormData] = useState({
     nm_razao_social: "",
@@ -49,7 +67,71 @@ export default function FichaEmpresaPage() {
 
   useEffect(() => {
     buscarDados();
+    buscarApontamentos();
   }, [params.id]);
+
+  const buscarApontamentos = async () => {
+    const projetoId = params.id as string;
+    if (!projetoId) return;
+
+    const { data, error } = await supabase
+      .from("APONTAMENTOS_HORAS")
+      .select(
+        "cd_apontamento, nr_horas, ds_descricao, dt_apontamento, CONSULTORES ( nm_completo )",
+      )
+      .eq("cd_projeto", projetoId)
+      .order("dt_apontamento", { ascending: false });
+
+    if (error) {
+      console.error("Erro ao carregar apontamentos de horas:", error);
+      return;
+    }
+
+    setApontamentos((data as any) || []);
+  };
+
+  const handleRegistrarHoras = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const projetoId = params.id as string;
+    const horas = parseFloat(formApontamento.nr_horas);
+    if (!projetoId || !horas || horas <= 0) return;
+
+    setIsSavingApontamento(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const { data: consultor } = await supabase
+        .from("CONSULTORES")
+        .select("cd_consultor")
+        .eq("cd_auth_supabase", session?.user.id)
+        .maybeSingle();
+
+      const { error } = await supabase.from("APONTAMENTOS_HORAS").insert({
+        cd_projeto: projetoId,
+        cd_consultor: consultor?.cd_consultor || null,
+        nr_horas: horas,
+        ds_descricao: formApontamento.ds_descricao || null,
+        dt_apontamento: formApontamento.dt_apontamento,
+      });
+
+      if (error) throw error;
+
+      await Promise.all([buscarDados(), buscarApontamentos()]);
+      setIsApontamentoModalOpen(false);
+      setFormApontamento({
+        nr_horas: "",
+        ds_descricao: "",
+        dt_apontamento: new Date().toISOString().slice(0, 10),
+      });
+    } catch (error) {
+      console.error("Erro ao registrar horas:", error);
+      alert("Erro ao registrar horas.");
+    } finally {
+      setIsSavingApontamento(false);
+    }
+  };
 
   const buscarDados = async () => {
     const projetoId = params.id as string;
@@ -574,6 +656,107 @@ export default function FichaEmpresaPage() {
           </div>
         )}
 
+        {/* MODAL: REGISTRAR HORAS */}
+        {isApontamentoModalOpen && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 print-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+                <h3 className="text-lg font-bold text-primary flex items-center gap-2">
+                  <span className="material-symbols-outlined text-accent">
+                    schedule
+                  </span>
+                  Registrar Horas
+                </h3>
+                <button
+                  onClick={() => setIsApontamentoModalOpen(false)}
+                  className="text-slate-400 hover:text-red-500 transition-colors focus:outline-none"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <form onSubmit={handleRegistrarHoras} className="flex flex-col">
+                <div className="p-6 space-y-4 bg-slate-50/50">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-semibold text-slate-700">
+                        Horas *
+                      </label>
+                      <input
+                        required
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        placeholder="Ex: 2.5"
+                        value={formApontamento.nr_horas}
+                        onChange={(e) =>
+                          setFormApontamento({
+                            ...formApontamento,
+                            nr_horas: e.target.value,
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-semibold text-slate-700">
+                        Data *
+                      </label>
+                      <input
+                        required
+                        type="date"
+                        value={formApontamento.dt_apontamento}
+                        onChange={(e) =>
+                          setFormApontamento({
+                            ...formApontamento,
+                            dt_apontamento: e.target.value,
+                          })
+                        }
+                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-semibold text-slate-700">
+                      Descrição da atividade
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="O que foi feito nesse período..."
+                      value={formApontamento.ds_descricao}
+                      onChange={(e) =>
+                        setFormApontamento({
+                          ...formApontamento,
+                          ds_descricao: e.target.value,
+                        })
+                      }
+                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary/20 outline-none resize-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsApontamentoModalOpen(false)}
+                    className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingApontamento || !formApontamento.nr_horas}
+                    className="px-5 py-2.5 bg-primary hover:bg-primary-dark text-white text-sm font-bold rounded-lg disabled:opacity-50"
+                  >
+                    {isSavingApontamento ? "Salvando..." : "Registrar"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* CABEÇALHO */}
         <header className="bg-white/95 backdrop-blur-sm px-4 sm:px-8 py-5 sm:py-6 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6 border-b border-slate-200 shadow-sm sticky top-0 z-30 w-full">
           <div className="flex flex-col gap-1 sm:gap-2">
@@ -772,9 +955,20 @@ export default function FichaEmpresaPage() {
                       style={{ width: `${percentual}%` }}
                     ></div>
                   </div>
-                  <p className="text-xs text-slate-400 mt-2 font-medium text-right">
-                    {consumido} de {total} horas contratadas
-                  </p>
+                  <div className="flex justify-between items-center mt-2">
+                    <p className="text-xs text-slate-400 font-medium">
+                      {consumido} de {total} horas contratadas
+                    </p>
+                    <button
+                      onClick={() => setIsApontamentoModalOpen(true)}
+                      className="print-hidden flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">
+                        add_circle
+                      </span>
+                      Registrar horas
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -875,9 +1069,9 @@ export default function FichaEmpresaPage() {
                 </div>
               </div>
 
-              <div className="relative pl-8">
-                <div className="absolute -left-[11px] top-1 h-5 w-5 rounded-full bg-slate-300 border-4 border-white shadow-sm"></div>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+              {apontamentos.length === 0 ? (
+                <div className="relative pl-8">
+                  <div className="absolute -left-[11px] top-1 h-5 w-5 rounded-full bg-slate-300 border-4 border-white shadow-sm"></div>
                   <div className="opacity-60">
                     <h4 className="text-sm font-bold text-slate-800">
                       Aguardando Kick-off
@@ -887,7 +1081,36 @@ export default function FichaEmpresaPage() {
                     </p>
                   </div>
                 </div>
-              </div>
+              ) : (
+                apontamentos.map((ap) => {
+                  const consultor = Array.isArray(ap.CONSULTORES)
+                    ? ap.CONSULTORES[0]
+                    : ap.CONSULTORES;
+                  return (
+                    <div key={ap.cd_apontamento} className="relative pl-8">
+                      <div className="absolute -left-[11px] top-1 h-5 w-5 rounded-full bg-accent border-4 border-white shadow-sm"></div>
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-800">
+                            {ap.nr_horas}h registradas
+                            {consultor?.nm_completo
+                              ? ` — ${consultor.nm_completo}`
+                              : ""}
+                          </h4>
+                          <p className="text-sm text-slate-500 font-medium mt-1">
+                            {ap.ds_descricao || "Sem descrição."}
+                          </p>
+                        </div>
+                        <span className="text-xs text-slate-400 font-bold whitespace-nowrap bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100">
+                          {new Date(
+                            `${ap.dt_apontamento}T00:00:00`,
+                          ).toLocaleDateString("pt-BR")}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

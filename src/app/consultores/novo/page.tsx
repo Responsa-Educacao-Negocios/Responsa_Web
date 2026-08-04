@@ -15,6 +15,7 @@ export default function CadastrarConsultorPage() {
     nr_telefone: "",
     ds_especialidade: "Recrutamento e Seleção",
     tp_senioridade: "Pleno",
+    tp_permissao: "CONSULTOR",
     sn_ativo: true,
   });
 
@@ -40,11 +41,13 @@ export default function CadastrarConsultorPage() {
       // 2. Salva os dados completos na sua tabela de CONSULTORES
       const { error: dbError } = await supabase.from("CONSULTORES").insert([
         {
-          nm_consultor: formData.nm_consultor,
+          cd_auth_supabase: authData.user?.id,
+          nm_completo: formData.nm_consultor,
           ds_email: formData.ds_email,
           nr_telefone: formData.nr_telefone,
           ds_especialidade: formData.ds_especialidade,
           tp_senioridade: formData.tp_senioridade,
+          tp_permissao: formData.tp_permissao,
           sn_ativo: formData.sn_ativo,
         },
       ]);
@@ -283,6 +286,34 @@ export default function CadastrarConsultorPage() {
 
           {/* BLOCO 3: CONFIGURAÇÕES DE ACESSO */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-8 border-b border-slate-100">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Nível de Permissão
+              </label>
+              <p className="text-xs text-slate-500 font-medium mb-3 mt-0.5">
+                Administradores têm acesso total (usuários, cobranças e
+                configurações). Consultores têm acesso operacional aos
+                projetos.
+              </p>
+              <div className="flex gap-3">
+                {(["CONSULTOR", "ADMIN"] as const).map((nivel) => (
+                  <button
+                    key={nivel}
+                    type="button"
+                    onClick={() =>
+                      setFormData({ ...formData, tp_permissao: nivel })
+                    }
+                    className={`px-5 py-2.5 rounded-xl text-sm font-bold border transition-all ${
+                      formData.tp_permissao === nivel
+                        ? "bg-[#064384] text-white border-[#064384]"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {nivel === "ADMIN" ? "Administrador" : "Consultor"}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="p-8 flex items-center justify-between">
               <div>
                 <h2 className="font-black text-slate-800 text-sm uppercase tracking-widest mb-1">

@@ -85,6 +85,26 @@ interface Ficha {
   desafiosAtuais: string;
 }
 
+interface MelhoriaManual {
+  objetivosCliente: string;
+  parar: string;
+  continuar: string;
+  comecar: string;
+}
+
+const MELHORIA_VAZIA: MelhoriaManual = { objetivosCliente: "", parar: "", continuar: "", comecar: "" };
+
+interface PlanoItem {
+  descricao: string;
+  responsavel: string;
+  prioridade: "Baixa" | "Média" | "Alta";
+  dataInicio: string;
+  dataTermino: string;
+  recursos: string;
+}
+
+const PLANO_ITEM_VAZIO: PlanoItem = { descricao: "", responsavel: "", prioridade: "Média", dataInicio: "", dataTermino: "", recursos: "" };
+
 export default function ComportamentalPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -104,7 +124,16 @@ export default function ComportamentalPage() {
   });
 
   const [respostas, setRespostas] = useState<Record<string, Record<number, number>>>({});
-  const [plano, setPlano] = useState(["", "", "", "", ""]);
+  const [melhoria, setMelhoria] = useState<MelhoriaManual>(MELHORIA_VAZIA);
+  const [plano, setPlano] = useState<PlanoItem[]>([{ ...PLANO_ITEM_VAZIO }]);
+
+  const addPlanoItem = () => setPlano([...plano, { ...PLANO_ITEM_VAZIO }]);
+  const removePlanoItem = (i: number) => setPlano(plano.filter((_, idx) => idx !== i));
+  const updatePlanoItem = (i: number, campo: keyof PlanoItem, valor: string) => {
+    const novo = [...plano];
+    novo[i] = { ...novo[i], [campo]: valor };
+    setPlano(novo);
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -146,11 +175,22 @@ export default function ComportamentalPage() {
         </div>
       </div>`).join("");
 
-    const recomendacoes = plano.filter(Boolean).map((r, i) => `
-      <div style="padding:12px 16px;background:#f8fafc;border-left:4px solid #064384;border-radius:0 8px 8px 0;margin-bottom:10px;">
-        <strong style="font-size:12px;color:#064384;">Recomendação ${i + 1}</strong>
-        <p style="font-size:14px;color:#334155;margin:4px 0 0;">${r}</p>
-      </div>`).join("") || "<p style='color:#94a3b8;font-style:italic;'>Nenhuma recomendação registrada.</p>";
+    const planoPreenchido = plano.filter((p) => p.descricao.trim());
+    const formatarDataPdf = (d: string) => d ? new Date(d + "T12:00:00").toLocaleDateString("pt-BR") : "—";
+    const planoTabela = planoPreenchido.length === 0
+      ? "<p style='color:#94a3b8;font-style:italic;'>Nenhuma recomendação registrada.</p>"
+      : `<table>
+          <tr><th>#</th><th>Recomendação</th><th>Responsável</th><th>Prioridade</th><th>Início</th><th>Término</th><th>Recursos</th></tr>
+          ${planoPreenchido.map((p, i) => `<tr>
+            <td>${i + 1}</td>
+            <td>${p.descricao}</td>
+            <td>${p.responsavel || "—"}</td>
+            <td>${p.prioridade}</td>
+            <td>${formatarDataPdf(p.dataInicio)}</td>
+            <td>${formatarDataPdf(p.dataTermino)}</td>
+            <td>${p.recursos || "—"}</td>
+          </tr>`).join("")}
+        </table>`;
 
     const html = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
     <title>Diagnóstico Comportamental — ${ficha.razaoSocial}</title>
@@ -241,12 +281,9 @@ export default function ComportamentalPage() {
         </tr>`).join("")}
       </table>
       <div style="margin-top:24px;">${barras}</div>
-    </div>
 
-    <div class="page">
-      <div class="ph"><span class="ph-logo">RESPONSA · Comportamental</span><span class="ph-info">${ficha.razaoSocial} · ${dataFmt}</span></div>
-      <div class="st">Seção 4 — Áreas Prioritárias</div>
-      <h2>Áreas de Melhoria para Aprofundamento</h2>
+      <div class="st" style="margin-top:32px;">Seção 4 — Áreas Prioritárias</div>
+      <h2>Ranking de Áreas para Aprofundamento</h2>
       <p>As áreas abaixo apresentam os menores índices de desempenho e devem receber atenção prioritária no plano de desenvolvimento:</p>
       <table>
         <tr><th>#</th><th>Área</th><th>Pontuação</th><th>% de Aproveitamento</th></tr>
@@ -257,10 +294,31 @@ export default function ComportamentalPage() {
           <td style="font-weight:700;color:#ef4444;">${a.pct}%</td>
         </tr>`).join("")}
       </table>
+    </div>
 
-      <div class="st" style="margin-top:32px;">Seção 5 — Plano de Ação</div>
+    <div class="page">
+      <div class="ph"><span class="ph-logo">RESPONSA · Comportamental</span><span class="ph-info">${ficha.razaoSocial} · ${dataFmt}</span></div>
+      <div class="st">Seção 5 — Área de Melhoria</div>
+      <h2>Objetivos do Cliente e Direcionamento</h2>
+      <p><strong>Objetivos do cliente:</strong><br/>${melhoria.objetivosCliente || "Não informado."}</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:16px;">
+        <div style="padding:14px 16px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;">
+          <strong style="font-size:11px;color:#dc2626;text-transform:uppercase;letter-spacing:1px;">Parar de Fazer</strong>
+          <p style="font-size:13px;color:#334155;margin-top:6px;">${melhoria.parar || "—"}</p>
+        </div>
+        <div style="padding:14px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;">
+          <strong style="font-size:11px;color:#b45309;text-transform:uppercase;letter-spacing:1px;">Continuar Fazendo</strong>
+          <p style="font-size:13px;color:#334155;margin-top:6px;">${melhoria.continuar || "—"}</p>
+        </div>
+        <div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;">
+          <strong style="font-size:11px;color:#047857;text-transform:uppercase;letter-spacing:1px;">Começar a Fazer</strong>
+          <p style="font-size:13px;color:#334155;margin-top:6px;">${melhoria.comecar || "—"}</p>
+        </div>
+      </div>
+
+      <div class="st" style="margin-top:32px;">Seção 6 — Plano de Ação</div>
       <h2>Recomendações do Consultor</h2>
-      ${recomendacoes}
+      ${planoTabela}
 
       <div style="margin-top:48px;text-align:center;padding:20px;background:#f8fafc;border-radius:12px;border:1px solid #e2e8f0;">
         <p style="font-size:12px;color:#94a3b8;font-weight:600;">
@@ -289,7 +347,7 @@ export default function ComportamentalPage() {
     { id: "ficha", label: "Ficha Cadastral", icon: "assignment_ind" },
     { id: "diagnostico", label: "Diagnóstico", icon: "quiz" },
     { id: "resultado", label: "Resultado", icon: "bar_chart" },
-    { id: "melhoria", label: "Áreas de Melhoria", icon: "trending_down" },
+    { id: "melhoria", label: "Área de Melhoria", icon: "edit_note" },
     { id: "plano", label: "Plano de Ação", icon: "task_alt" },
     { id: "relatorio", label: "Relatório", icon: "picture_as_pdf" },
   ];
@@ -488,40 +546,91 @@ export default function ComportamentalPage() {
                   })}
                 </div>
 
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+                  <h4 className="font-black text-slate-800 mb-1">Ranking de Áreas para Aprofundamento</h4>
+                  <p className="text-sm text-slate-500 font-medium mb-5">As áreas abaixo apresentaram os menores índices e devem ser priorizadas.</p>
+                  <div className="space-y-4">
+                    {areasOrdenadas().map((area, i) => (
+                      <div key={area.id} className={`flex items-center gap-4 p-4 rounded-xl border ${i < 2 ? "border-red-100 bg-red-50" : i < 4 ? "border-yellow-100 bg-yellow-50" : "border-green-100 bg-green-50"}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white text-sm shrink-0 ${i < 2 ? "bg-red-500" : i < 4 ? "bg-yellow-400" : "bg-green-500"}`}>
+                          {i + 1}º
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-black text-slate-800">{area.nome}</div>
+                          <div className="text-xs text-slate-500 font-medium">{area.subtotal}/12 pontos — {area.pct}%</div>
+                        </div>
+                        <span className={`text-xs font-black px-2 py-1 rounded-lg ${i < 2 ? "text-red-600 bg-red-100" : i < 4 ? "text-yellow-700 bg-yellow-100" : "text-green-700 bg-green-100"}`}>
+                          {i < 2 ? "Prioritária" : i < 4 ? "Importante" : "Satisfatória"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <button onClick={() => setStep("diagnostico")} className="flex items-center gap-2 text-sm font-bold text-slate-500 hover:text-[#064384] transition-colors">
                     <span className="material-symbols-outlined text-[18px]">arrow_back</span> Voltar
                   </button>
                   <button onClick={() => setStep("melhoria")} className="flex items-center gap-2 h-12 px-8 bg-[#064384] text-white font-black rounded-xl hover:bg-blue-900 transition-all shadow-md">
-                    Áreas de Melhoria
-                    <span className="material-symbols-outlined text-[18px]">trending_down</span>
+                    Área de Melhoria
+                    <span className="material-symbols-outlined text-[18px]">edit_note</span>
                   </button>
                 </div>
               </div>
             );
           })()}
 
-          {/* ── STEP: MELHORIA ── */}
+          {/* ── STEP: MELHORIA (manual) ── */}
           {step === "melhoria" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-                <h3 className="text-xl font-black text-slate-800 mb-2">Áreas de Melhoria Identificadas</h3>
-                <p className="text-sm text-slate-500 font-medium mb-6">As áreas abaixo apresentaram os menores índices e devem ser priorizadas.</p>
-                <div className="space-y-4">
-                  {areasOrdenadas().map((area, i) => (
-                    <div key={area.id} className={`flex items-center gap-4 p-4 rounded-xl border ${i < 2 ? "border-red-100 bg-red-50" : i < 4 ? "border-yellow-100 bg-yellow-50" : "border-green-100 bg-green-50"}`}>
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-white text-sm shrink-0 ${i < 2 ? "bg-red-500" : i < 4 ? "bg-yellow-400" : "bg-green-500"}`}>
-                        {i + 1}º
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-black text-slate-800">{area.nome}</div>
-                        <div className="text-xs text-slate-500 font-medium">{area.subtotal}/12 pontos — {area.pct}%</div>
-                      </div>
-                      <span className={`text-xs font-black px-2 py-1 rounded-lg ${i < 2 ? "text-red-600 bg-red-100" : i < 4 ? "text-yellow-700 bg-yellow-100" : "text-green-700 bg-green-100"}`}>
-                        {i < 2 ? "Prioritária" : i < 4 ? "Importante" : "Satisfatória"}
-                      </span>
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+                <h3 className="text-xl font-black text-slate-800 mb-2">Área de Melhoria</h3>
+                <p className="text-sm text-slate-500 font-medium mb-6">
+                  Registre a leitura do consultor sobre o cliente: objetivos e o que deve parar, continuar e começar a fazer.
+                </p>
+                <div className="space-y-5">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-bold text-slate-700">Objetivos do Cliente</label>
+                    <textarea
+                      rows={3}
+                      placeholder="O que o cliente espera alcançar com a consultoria..."
+                      value={melhoria.objetivosCliente}
+                      onChange={(e) => setMelhoria({ ...melhoria, objetivosCliente: e.target.value })}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none resize-none"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-red-600">Parar de Fazer</label>
+                      <textarea
+                        rows={5}
+                        placeholder="O que deve ser interrompido..."
+                        value={melhoria.parar}
+                        onChange={(e) => setMelhoria({ ...melhoria, parar: e.target.value })}
+                        className="w-full rounded-xl border border-red-100 bg-red-50/40 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-red-300 focus:ring-1 focus:ring-red-200 outline-none resize-none"
+                      />
                     </div>
-                  ))}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-amber-600">Continuar Fazendo</label>
+                      <textarea
+                        rows={5}
+                        placeholder="O que já funciona bem..."
+                        value={melhoria.continuar}
+                        onChange={(e) => setMelhoria({ ...melhoria, continuar: e.target.value })}
+                        className="w-full rounded-xl border border-amber-100 bg-amber-50/40 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-amber-300 focus:ring-1 focus:ring-amber-200 outline-none resize-none"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-emerald-600">Começar a Fazer</label>
+                      <textarea
+                        rows={5}
+                        placeholder="O que precisa ser implementado..."
+                        value={melhoria.comecar}
+                        onChange={(e) => setMelhoria({ ...melhoria, comecar: e.target.value })}
+                        className="w-full rounded-xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-300 focus:ring-1 focus:ring-emerald-200 outline-none resize-none"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -540,21 +649,96 @@ export default function ComportamentalPage() {
           {step === "plano" && (
             <div className="space-y-6">
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
-                <h3 className="text-xl font-black text-slate-800 mb-2">Plano de Ação</h3>
-                <p className="text-sm text-slate-500 font-medium mb-6">Registre até 5 recomendações para o desenvolvimento das competências identificadas.</p>
-                <div className="space-y-4">
-                  {plano.map((rec, i) => (
-                    <div key={i} className="flex gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#064384] text-white flex items-center justify-center font-black text-sm shrink-0 mt-3">{i + 1}</div>
-                      <div className="flex-1">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5 block">Recomendação {i + 1}</label>
-                        <textarea
-                          rows={2}
-                          placeholder={`Descreva a recomendação ${i + 1}...`}
-                          value={rec}
-                          onChange={(e) => { const novo = [...plano]; novo[i] = e.target.value; setPlano(novo); }}
-                          className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none resize-none"
-                        />
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h3 className="text-xl font-black text-slate-800 mb-1">Plano de Ação</h3>
+                    <p className="text-sm text-slate-500 font-medium">Registre as recomendações para o desenvolvimento das competências identificadas.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={addPlanoItem}
+                    className="flex items-center gap-1.5 text-sm font-bold text-[#064384] hover:bg-blue-50 px-3 py-2 rounded-lg shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">add_circle</span>
+                    Adicionar
+                  </button>
+                </div>
+                <div className="space-y-6 mt-6">
+                  {plano.map((item, i) => (
+                    <div key={i} className="border border-slate-200 rounded-xl p-5 relative">
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-xs font-black text-[#064384] uppercase tracking-wide">Recomendação {i + 1}</span>
+                        {plano.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removePlanoItem(i)}
+                            title="Remover"
+                            className="text-slate-400 hover:text-red-500 transition-colors"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        )}
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Descrição da Recomendação</label>
+                          <textarea
+                            rows={2}
+                            placeholder="Descreva a recomendação..."
+                            value={item.descricao}
+                            onChange={(e) => updatePlanoItem(i, "descricao", e.target.value)}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none resize-none"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Responsável</label>
+                            <input
+                              value={item.responsavel}
+                              onChange={(e) => updatePlanoItem(i, "responsavel", e.target.value)}
+                              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Prioridade</label>
+                            <select
+                              value={item.prioridade}
+                              onChange={(e) => updatePlanoItem(i, "prioridade", e.target.value)}
+                              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none"
+                            >
+                              <option value="Baixa">Baixa</option>
+                              <option value="Média">Média</option>
+                              <option value="Alta">Alta</option>
+                            </select>
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Data de Início</label>
+                            <input
+                              type="date"
+                              value={item.dataInicio}
+                              onChange={(e) => updatePlanoItem(i, "dataInicio", e.target.value)}
+                              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Data de Término</label>
+                            <input
+                              type="date"
+                              value={item.dataTermino}
+                              onChange={(e) => updatePlanoItem(i, "dataTermino", e.target.value)}
+                              className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wide">Recursos Necessários</label>
+                          <input
+                            placeholder="Ex: orçamento, treinamento, ferramenta..."
+                            value={item.recursos}
+                            onChange={(e) => updatePlanoItem(i, "recursos", e.target.value)}
+                            className="h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#064384] focus:ring-1 focus:ring-[#064384] outline-none"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -594,7 +778,7 @@ export default function ComportamentalPage() {
                     Exportar Relatório PDF
                   </button>
                   <button
-                    onClick={() => { setStep("ficha"); setFicha({ consultor: "", dataAtendimento: new Date().toISOString().split("T")[0], razaoSocial: "", nomeContato: "", celular: "", email: "", tempoOperacao: "", segmentoClientes: "", atividadeEconomica: "", desafiosAtuais: "" }); setRespostas({}); setPlano(["", "", "", "", ""]); }}
+                    onClick={() => { setStep("ficha"); setFicha({ consultor: "", dataAtendimento: new Date().toISOString().split("T")[0], razaoSocial: "", nomeContato: "", celular: "", email: "", tempoOperacao: "", segmentoClientes: "", atividadeEconomica: "", desafiosAtuais: "" }); setRespostas({}); setMelhoria(MELHORIA_VAZIA); setPlano([{ ...PLANO_ITEM_VAZIO }]); }}
                     className="mt-4 flex items-center justify-center gap-2 h-12 px-8 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-all mx-auto"
                   >
                     <span className="material-symbols-outlined text-[18px]">refresh</span>

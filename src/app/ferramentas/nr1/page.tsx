@@ -27,6 +27,28 @@ export default function NR1AdminPage() {
   const [pdiAtivo, setPdiAtivo] = useState<string | null>(null);
   const [pdiTexto, setPdiTexto] = useState("");
 
+  // Assinatura digital do responsável técnico (aparece no rodapé do PDF)
+  const [isAssinaturaModalOpen, setIsAssinaturaModalOpen] = useState(false);
+  const [assinaturaNome, setAssinaturaNome] = useState("");
+  const [assinaturaCra, setAssinaturaCra] = useState("");
+
+  useEffect(() => {
+    const config = localStorage.getItem("nr1_assinatura_config");
+    if (config) {
+      const { nome, cra } = JSON.parse(config);
+      setAssinaturaNome(nome || "");
+      setAssinaturaCra(cra || "");
+    }
+  }, []);
+
+  const salvarAssinatura = () => {
+    localStorage.setItem(
+      "nr1_assinatura_config",
+      JSON.stringify({ nome: assinaturaNome, cra: assinaturaCra }),
+    );
+    setIsAssinaturaModalOpen(false);
+  };
+
   useEffect(() => {
     const carregarDados = async () => {
       const { data } = await supabase
@@ -191,7 +213,21 @@ export default function NR1AdminPage() {
               : ""
           }
           
-          <div style="margin-top: 50px; text-align: center; font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase;">
+          ${
+            assinaturaNome
+              ? `
+          <div style="margin-top: 60px; display: flex; justify-content: center;">
+            <div style="text-align: center; padding-top: 8px; border-top: 1px solid #1e293b; min-width: 320px;">
+              <p style="font-family: 'Brush Script MT', 'Segoe Script', cursive; font-size: 30px; margin: 0 0 6px 0; color: #0f172a;">${assinaturaNome}</p>
+              <p style="font-size: 13px; font-weight: 800; margin: 0; color: #1e293b;">${assinaturaNome}</p>
+              <p style="font-size: 11px; font-weight: 600; margin: 2px 0 0 0; color: #64748b;">Responsável Técnico${assinaturaCra ? ` &nbsp;·&nbsp; CRA Nº ${assinaturaCra}` : ""}</p>
+            </div>
+          </div>
+          `
+              : ""
+          }
+
+          <div style="margin-top: 30px; text-align: center; font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase;">
             Metodologia NR-1/GRO | Gerado via Consultoria Wallison Branquinho
           </div>
           <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 500); };</script>
@@ -219,6 +255,54 @@ export default function NR1AdminPage() {
         }}
       />
 
+      {/* MODAL: ASSINATURA DIGITAL */}
+      {isAssinaturaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
+              <h3 className="text-lg font-bold text-[#064384] flex items-center gap-2">
+                <span className="material-symbols-outlined text-red-600">draw</span>
+                Assinatura Digital do Relatório
+              </h3>
+              <button onClick={() => setIsAssinaturaModalOpen(false)} className="text-slate-400 hover:text-red-500">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="p-6 space-y-4 bg-slate-50/50">
+              <p className="text-xs text-slate-500 font-medium">
+                Esses dados aparecem como assinatura do responsável técnico no rodapé de todo relatório NR-1 gerado.
+              </p>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-slate-700">Nome do Responsável Técnico</label>
+                <input
+                  value={assinaturaNome}
+                  onChange={(e) => setAssinaturaNome(e.target.value)}
+                  placeholder="Ex: Wallison Branquinho"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-red-200 outline-none"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-semibold text-slate-700">Número do CRA</label>
+                <input
+                  value={assinaturaCra}
+                  onChange={(e) => setAssinaturaCra(e.target.value)}
+                  placeholder="Ex: SP-12345"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-red-200 outline-none"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+              <button onClick={() => setIsAssinaturaModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-lg">
+                Cancelar
+              </button>
+              <button onClick={salvarAssinatura} className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg">
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 overflow-y-auto flex flex-col h-full relative">
         <header className="bg-white/95 backdrop-blur-sm px-8 py-6 border-b border-slate-200 shadow-sm sticky top-0 z-10 w-full flex items-center gap-4 shrink-0">
           <div className="size-12 bg-red-50 text-red-600 rounded-xl flex items-center justify-center shrink-0">
@@ -226,7 +310,7 @@ export default function NR1AdminPage() {
               health_and_safety
             </span>
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="text-2xl font-black text-[#064384] tracking-tight">
               Riscos Psicossociais (NR-1)
             </h2>
@@ -234,6 +318,13 @@ export default function NR1AdminPage() {
               Mapeamento e Gerenciamento (GRO)
             </p>
           </div>
+          <button
+            onClick={() => setIsAssinaturaModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-200 transition-all shrink-0"
+          >
+            <span className="material-symbols-outlined text-[18px]">draw</span>
+            {assinaturaNome ? "Editar Assinatura" : "Configurar Assinatura"}
+          </button>
         </header>
 
         <div className="p-8 max-w-[1400px] mx-auto w-full space-y-8">
