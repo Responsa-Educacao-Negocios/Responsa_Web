@@ -23,6 +23,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
     { label: "Relatórios", href: "/relatorios", icon: "bar_chart" },
     { label: "Consultores", href: "/consultores", icon: "person" },
     { label: "Ferramentas", href: "/ferramentas", icon: "build" },
+    { label: "Assinatura", href: "/assinatura", icon: "credit_card" },
   ];
 
   useEffect(() => {
